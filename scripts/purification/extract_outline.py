@@ -1,8 +1,6 @@
 import re, io, copy, os, sys, argparse, json, pdb
 from tqdm import tqdm
 from collections import Counter, OrderedDict
-from pprint import pprint
-from text2num import text2num
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 
