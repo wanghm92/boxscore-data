@@ -157,9 +157,13 @@ def prep_roto():
             for lk in linekeys:
                 for k in thing[lk].keys():
                     v = thing[lk][k]
-                    out[lk]["TEAM-" + k] = v
+                    if k == 'TO':
+                        new_key = "TEAM-TOV"
+                    else:
+                        new_key = "TEAM-" + k
+                    out[lk][new_key] = v
                     del out[lk][k]
-            data_out.append(thing)
+            data_out.append(out)
 
     train, val, test = [], [], []
     for thing in data_out:
