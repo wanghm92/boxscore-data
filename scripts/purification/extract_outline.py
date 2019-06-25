@@ -1,4 +1,4 @@
-import re, io, copy, os, sys, argparse, json, pdb
+import re, io, copy, os, sys, argparse, json, pdb, jsonlines
 from tqdm import tqdm
 from collections import Counter, OrderedDict
 from domain_knowledge import Domain_Knowledge
@@ -182,98 +182,8 @@ def retrieve_record(value, num2rcds, priority):
                 break
     return candidate, value
 
-# ---------------------------------------------------------------------------------- #
-# --- converting back to original json tables, only to be compatible with WS2017 --- #
-# ---------------------------------------------------------------------------------- #
-
-def update_table(day, paragraph_text, inp):
-    table_keys = ['home_name', 'box_score', 'home_city', 'vis_name', 'summary', 'vis_line', 'vis_city', 'day',
-                  'home_line']
-    inp_out = dict.fromkeys(table_keys)
-    inp_out['day'] = day
-
-    tokenized_paragraph = ' '.join(paragraph_text.split('_')).strip()
-    inp_out['summary'] = tokenized_paragraph.split()
-
-    player_count = 0
-    player2idx = {}
-    player2records = {}
-    player2names = {}
-    player2ha = {}
-    ha2city = {}
-    ha2team = {}
-    this_line_score = {}
-    ha2line = {'HOME': {}, 'AWAY': {}}
-    box_keys = ['MIN', 'FGM', 'REB', 'FG3A', 'AST', 'FG3M', 'OREB', 'START_POSITION', 'PF', 'PTS', 'FGA', 'STL', 'FTA',
-                'BLK', 'DREB', 'FTM', 'FT_PCT', 'FG_PCT', 'FG3_PCT']
-    other_keys = ['FIRST_NAME', 'TO', 'SECOND_NAME', 'TEAM_CITY', 'PLAYER_NAME']
-    all_keys = box_keys + other_keys
-    boxscore = {k: {} for k in all_keys}
-
-    for rcd in inp.split():
-        value, field, rcd_type, ha = rcd.split(DELIM)
-        value = _tokenize(value)
-        if 'TEAM' in rcd_type:
-            this_line_score[rcd_type] = value
-            team = _tokenize(field)
-
-            if not ha in ha2team:
-                ha2team[ha] = team
-            if not ha in ha2city and rcd_type == 'TEAM-CITY':
-                ha2city[ha] = value
-
-            ha2line[ha][rcd_type] = value
-
-        else:
-            player = field
-            if not player in player2idx:
-                player2idx[player] = str(player_count)
-                player_count += 1
-
-            if not player in player2names:
-                if player == NA:
-                    firstname, secondname = 'N/A', 'N/A'
-                else:
-                    if len(player.split('_')) == 1:
-                        firstname, secondname = player, 'N/A'
-                    else:
-                        firstname, secondname = player.split('_')[:2]
-                player2names[player] = {'FIRST_NAME': firstname, 'SECOND_NAME': secondname}
-
-            if not player in player2records:
-                player2records[player] = {rcd_type: value}
-            else:
-                player2records[player].update({rcd_type: value})
-
-            if not player in player2ha:
-                player2ha[player] = ha
-
-    inp_out['home_name'] = ha2team['HOME']
-    inp_out['home_city'] = ha2city['HOME']
-    inp_out['home_line'] = ha2line['HOME']
-    inp_out['vis_name'] = ha2team['AWAY']
-    inp_out['vis_city'] = ha2city['AWAY']
-    inp_out['vis_line'] = ha2line['AWAY']
-
-    for player, idx in player2idx.items():
-
-        records = player2records[player]
-        names = player2names[player]
-        ha = player2ha[player]
-        city = ha2city[ha]
-        boxscore['PLAYER_NAME'][idx] = _tokenize(records['PLAYER_NAME'])
-        boxscore['FIRST_NAME'][idx] = names['FIRST_NAME']
-        boxscore['SECOND_NAME'][idx] = names['SECOND_NAME']
-        boxscore['TO'][idx] = records['TOV']
-        boxscore['TEAM_CITY'][idx] = city
-
-        for k in box_keys:
-            boxscore[k][idx] = records[k]
-
-    inp_out['box_score'] = boxscore
-    return inp_out
-
-
+'''
+Originally prepared to retain the same settings for NCP and WS2017
 # ------------------------------------------------------------------------------- #
 # --- construct a heuristic based outline for samples with empty content plan --- #
 # ------------------------------------------------------------------------------- #
@@ -300,6 +210,7 @@ def _construct_dummy_plan(table, rcd2idx):
     print(paragraph_plan)
     print(paragraph_plan_ids)
     return ' '.join(paragraph_plan_ids), ' '.join(paragraph_plan)
+'''
 
 # ------------------------------- #
 # --- very important patterns --- #
@@ -668,13 +579,13 @@ def _any_other_player(sent):
             return True
     return False
 
-def main(DATASET):
+def main(args, DATASET):
     player_not_found = 0
 
-    BASE_DIR = "outputs/{}".format(DATASET)
-    JSON_DIR = "../crawl/outputs/rotowire_json/"
+    BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
+    JSON_DIR = "../new_dataset/new_json/"
 
-    js = os.path.join(JSON_DIR, "{}.json".format(DATASET))
+    js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
     input_files = [
         "src_%s.norm.tk.txt" % DATASET,
         "tgt_%s.norm.filter.mwe.txt" % DATASET
@@ -688,28 +599,28 @@ def main(DATASET):
         "%s_content_plan_ids.txt" % DATASET,
         "%s_ptrs.txt" % DATASET,
         "tgt_%s.norm.filter.mwe.trim.txt" % DATASET,
+        "tgt_%s.norm.filter.mwe.trim.full.txt" % DATASET,
         "src_%s.norm.trim.txt" % DATASET
     ]
 
-    js_clean, cp_out_tks, cp_out_ids, ptrs_out, clean_tgt_trim, clean_src_trim = \
+    js_clean, cp_out_tks, cp_out_ids, ptrs_out, clean_tgt_trim, clean_tgt_trim_full, clean_src_trim = \
         [os.path.join(BASE_DIR, f) for f in output_files]
 
-    output_count = 0
     sent_count = 0
-    empty = 0
+    empty_sent = 0
+    output_count = 0
     with io.open(clean_src, 'r', encoding='utf-8') as fin_src, \
             io.open(clean_tgt_filter, 'r', encoding='utf-8') as fin_tgt, \
-            io.open(js, 'r', encoding='utf-8') as fin_js, \
+            jsonlines.open(js, 'r') as fin_js, \
             io.open(js_clean, 'w+', encoding='utf-8') as fout_js, \
             io.open(cp_out_tks, 'w+', encoding='utf-8') as fout_cp_tks, \
             io.open(cp_out_ids, 'w+', encoding='utf-8') as fout_cp_ids, \
             io.open(ptrs_out, 'w+', encoding='utf-8') as fout_ptr, \
             io.open(clean_tgt_trim, 'w+', encoding='utf-8') as fout_tgt, \
+            io.open(clean_tgt_trim_full, 'w+', encoding='utf-8') as fout_tgt_full, \
             io.open(clean_src_trim, 'w+', encoding='utf-8') as fout_src:
 
-        json_table = json.load(fin_js)
         output_table = []
-        print("{} samples in original json table {}".format(len(json_table), type(json_table)))
 
         targets = fin_tgt.read()
         targets = targets.strip().split('\n')
@@ -722,7 +633,8 @@ def main(DATASET):
             targets = [x.lower() for x in targets]
 
         city2team = {}
-        for idx, (inp, summary, table_original) in tqdm(enumerate(zip(inputs, targets, json_table))):
+        for idx, (inp, summary, table_original) in \
+                tqdm(enumerate(zip(inputs, targets, fin_js.iter(type=dict, skip_invalid=True)))):
             current_sent_players = OrderedDict()
             current_sent_teams = OrderedDict()
             # if idx > 30:
@@ -984,6 +896,7 @@ def main(DATASET):
                     word_pos += 1
                 else:
                     word_pos = starting_word_pos
+                    empty_sent += 1
                     for _ in range(len(sentence_plan)):
                         # print("*** warning *** last pointer removed at word_pos = {}".format(word_pos))
                         pointers.pop(-1)
@@ -1013,39 +926,42 @@ def main(DATASET):
             else:
                 print("content_plan empty at {}".format(idx))
                 print(summary)
-                paragraph_plan_ids, paragraph_plan = _construct_dummy_plan(table, rcd2idx)
-                paragraph_text = summary
-                pointers = ' '.join(['0,0'] * len(paragraph_plan.split()))
-                if DATASET in ['test', 'valid']:
-                    to_write = True
-                else:
-                    to_write = False
-                empty += 1
+                to_write = False
+                # paragraph_plan_ids, paragraph_plan = _construct_dummy_plan(table, rcd2idx)
+                # paragraph_text = summary
+                # pointers = ' '.join(['0,0'] * len(paragraph_plan.split()))
+                # if DATASET in ['test', 'valid']:
+                #     to_write = True
+                # else:
+                #     to_write = False
 
             if to_write:
                 output_count += 1
 
-                new_table = update_table(table_original['day'], paragraph_text, inp)
-
-                output_table.append(new_table)
+                # new_table = update_table(table_original['day'], paragraph_text, inp)
+                # output_table.append(new_table)
+                # NOTE: writing the 'norm' table
+                output_table.append(table_original)
 
                 fout_cp_ids.write("{}\n".format(paragraph_plan_ids))
                 fout_cp_tks.write("{}\n".format(paragraph_plan))
                 fout_tgt.write("{}\n".format(paragraph_text))
+                fout_tgt_full.write("{}\n".format(summary.strip()))
                 fout_ptr.write("{}\n".format(pointers))
 
         json.dump(output_table, fout_js)
 
-    print("{} samples are discarded due to empty content plan".format(empty))
+    print("{} sentences out of {} are discarded due to empty content plan".format(empty_sent, sent_count))
     print("{} samples are retained".format(output_count))
-    print("{} out of {} sentence contains players not available from the table".format(player_not_found, sent_count))
+    print("{} sentences out of {} contains players not available from the table".format(player_not_found, sent_count))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--inputs', type=str, default='../crawl/outputs/rotowire_txt/',
+    parser.add_argument('--dir', type=str, default='../new_dataset/new_clean/',
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
     for DATASET in ['train', 'valid', 'test']:
         print("Extracting content plan from {}".format(DATASET))
-        main(DATASET)
+        main(args, DATASET)

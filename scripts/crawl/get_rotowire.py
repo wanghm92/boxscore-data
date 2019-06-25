@@ -27,12 +27,13 @@ def _get_box(player_stats):
     data = player_stats['data']
     # print(len(headers))
     # print(len(data[0]))
+    box_key_lookup = dict.fromkeys(box_keys, True)
 
-    box_score = {k: {"0": v} for k, v in zip(headers, data[0]) if k in box_keys}
+    box_score = {k: {"0": v} for k, v in zip(headers, data[0]) if k in box_key_lookup}
     for idx, player in enumerate(data[1:]):
         for k, v in zip(headers, player):
-            if k in box_keys:
-                box_score[k].update({str(idx): v})
+            if k in box_key_lookup:
+                box_score[k].update({str(idx+1): v})
 
     assert set(box_score.keys()) == set(box_keys)
 
@@ -163,7 +164,7 @@ def get_games_from_htmls():
     # data = []
     game_lkt = {}
 
-    writer = jsonlines.open("outputs/rotoaligned.jsonl", "a")
+    writer = jsonlines.open("outputs/aligned.jsonl", "a")
     for fname in tqdm(sorted(os.listdir(in_dir))):
         in_file = os.path.join(in_dir, fname)
         mv_file = os.path.join(mv_dir, fname)

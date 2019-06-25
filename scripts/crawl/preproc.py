@@ -178,7 +178,7 @@ def prep_roto():
 
     # finally write everything
     try:
-        os.makedirs("outputs/rotowire_new")
+        os.makedirs("outputs/rotowire_json")
     except OSError as ex:
         if "File exists" in ex:
             print(ex)
@@ -186,13 +186,13 @@ def prep_roto():
             raise ex
 
     print("saving train ...")
-    with codecs.open("outputs/rotowire_new/train.json", "w+", "utf-8") as f:
+    with codecs.open("outputs/rotowire_json/train.json", "w+", "utf-8") as f:
         json.dump(train, f)
     print("saving valid ...")
-    with codecs.open("outputs/rotowire_new/valid.json", "w+", "utf-8") as f:
+    with codecs.open("outputs/rotowire_json/valid.json", "w+", "utf-8") as f:
         json.dump(val, f)
     print("saving test ...")
-    with codecs.open("outputs/rotowire_new/test.json", "w+", "utf-8") as f:
+    with codecs.open("outputs/rotowire_json/test.json", "w+", "utf-8") as f:
         json.dump(test, f)
 
 if __name__ == "__main__":

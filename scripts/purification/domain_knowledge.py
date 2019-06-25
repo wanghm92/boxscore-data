@@ -51,6 +51,81 @@ class Domain_Knowledge:
 
         self.player_lookup = dict.fromkeys([x[3] for x in players], True)
 
+        self.arenas = [
+            'AT_&_T_Center',
+            'Air_Canada_Centre',
+            'American_Airlines_Arena',
+            'American_Airlines_Center',
+            'Amway_Center',
+            'BMO_Harris_Bradley_Center',
+            'Bankers_Life_Fieldhouse',
+            'Barclays_Center',
+            'Chesapeake_Energy_Arena',
+            'EnergySolutions_Arena',
+            'Fed_Ex_Forum_Arena',
+            'Golden_One_Center',
+            'Madison_Square_Garden',
+            'Mexico_City_Arena',
+            'Moda_Center',
+            'Oracle_Arena',
+            'Pepsi_Center',
+            'Philips_Arena',
+            'Quicken_Loans_Arena',
+            'Sleep_Train_Arena',
+            'Smoothie_King_Center',
+            'Spectrum_Center',
+            'Staples_Center',
+            'TD_Garden',
+            'Talking_Stick_Resort_Arena',
+            'Target_Center',
+            'The_Palace_of_Auburn_Hills',
+            'Time_Warner_Cable_Arena',
+            'Toyota_Center',
+            'US_Airways_Center',
+            'United_Center',
+            'Verizon_Center',
+            'Vivint_Smart_Home_Arena',
+            'Wells_Fargo_Center'
+        ]
+
+        # Jazz: EnergySolutions_Arena renamed as Vivint_Smart_Home_Arena in 2015
+        # Kings: used Sleep_Train_Arena before Golden_One_Center
+        # Suns: Talking_Stick_Resort_Arena was US_Airways_Center before 2015
+        # Lakers and Clippers share Staples_Center
+        self.team2arenas = {
+            '76ers': ['Wells_Fargo_Center'],
+            'Bucks': ['BMO_Harris_Bradley_Center'],
+            'Bulls': ['United_Center'],
+            'Cavaliers': ['Quicken_Loans_Arena'],
+            'Celtics': ['TD_Garden'],
+            'Clippers': ['Staples_Center'],
+            'Grizzlies': ['Fed_Ex_Forum_Arena'],
+            'Hawks': ['Philips_Arena'],
+            'Heat': ['American_Airlines_Arena'],
+            'Hornets': ['Spectrum_Center'],
+            'Jazz': ['Vivint_Smart_Home_Arena', 'EnergySolutions_Arena'],
+            'Kings': ['Golden_One_Center', 'Sleep_Train_Arena'],
+            'Knicks': ['Madison_Square_Garden'],
+            'Lakers': ['Staples_Center'],
+            'Magic': ['Amway_Center'],
+            'Mavericks': ['American_Airlines_Center'],
+            'Nets': ['Barclays_Center'],
+            'Nuggets': ['Pepsi_Center'],
+            'Pacers': ['Bankers_Life_Fieldhouse'],
+            'Pelicans': ['Smoothie_King_Center'],
+            'Pistons': ['The_Palace_of_Auburn_Hills'],
+            'Raptors': ['Air_Canada_Center'],
+            'Rockets': ['Toyota_Center'],
+            'Spurs': ['AT_&_T_Center'],
+            'Suns': ['Talking_Stick_Resort_Arena', 'US_Airways_Center'],
+            'Thunder': ['Chesapeake_Energy_Arena'],
+            'Timberwolves': ['Target_Center'],
+            'Trail_Blazers': ['Moda_Center'],
+            'Warriors': ['Oracle_Arena'],
+            'Wizards': ['Verizon_Center']
+        }
+
+
 
 
 

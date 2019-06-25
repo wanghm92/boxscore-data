@@ -7,5 +7,7 @@ python pre_filter.py --dataset valid
 python pre_filter.py --dataset test
 echo "content plan and trim"
 python extract_outline.py
-echo "finalize"
-python ncp_format.py
+#echo "enrichment"
+#python add_feat.py
+#echo "finalize"
+#python ncp_format.py

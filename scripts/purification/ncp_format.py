@@ -12,13 +12,11 @@ knowledge_container = Domain_Knowledge()
 prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
 assert len(prefix.split()) == 4
 
-def main(DATASET):
-    BASE_DIR = "outputs/{}".format(DATASET)
-
-    mid = 'trim' if DATASET == 'train' else 'tk'
+def main(args, DATASET):
+    BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
 
     input_files = [
-        "src_%s.norm.%s.txt" % (DATASET, mid),
+        "src_%s.norm.trim.txt" % DATASET,
         "%s_content_plan_ids.txt" % DATASET,
         "%s_ptrs.txt" % DATASET,
         "tgt_%s.norm.filter.mwe.trim.txt" % DATASET,
@@ -68,10 +66,10 @@ def main(DATASET):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--inputs', type=str, default='../crawl/outputs/rotowire_txt/',
+    parser.add_argument('--dir', type=str, default='../new_dataset/new_clean/',
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
     for DATASET in ['train', 'valid', 'test']:
         print("Converting to ONMT format: {}".format(DATASET))
-        main(DATASET)
+        main(args, DATASET)

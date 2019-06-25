@@ -40,7 +40,7 @@ arenas = {
     "Bankers Life Fieldhouse": "Bankers_Life_Fieldhouse",
     "(?:Barclays|Barclay 's) Center": "Barclays_Center",
     "Chesapeake (?:Energy )Arena": "Chesapeake_Energy_Arena",
-    "Energy *Solutions Arena": "Energy_Solutions_Arena",
+    "Energy *Solutions Arena": "EnergySolutions_Arena",
     "Fed E(?:x|X) Forum Arena|FedExForum Arena": "Fed_Ex_Forum_Arena",
     "FedEx Forum": 'Fed_Ex_Forum_Arena',
     "Golden 1 Center|Golden One Center": "Golden_One_Center",
@@ -483,18 +483,18 @@ def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--inputs', type=str, default='../crawl/outputs/rotowire_txt/',
+    parser.add_argument('--dir', type=str, default='../new_dataset/new_clean/',
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
     for dataset in ['train', 'valid', 'test']:
         print("dataset: {}".format(dataset))
         input_files = [
-            "src_%s.txt" % dataset,
-            "tgt_%s.txt" % dataset,
+            "{}/src_{}.txt".format(dataset, dataset),
+            "{}/tgt_{}.txt".format(dataset, dataset),
         ]
 
-        src, tgt = [os.path.join(args.inputs, f) for f in input_files]
+        src, tgt = [os.path.join(args.dir, f) for f in input_files]
 
         output_files = [
             "src_%s.norm.tk.txt" % dataset,
@@ -502,7 +502,7 @@ if __name__ == "__main__":
             "tgt_%s.norm.mwe.txt" % dataset
         ]
 
-        out_dir = "outputs/{}".format(dataset)
+        out_dir = "{}/{}".format(args.dir, dataset)
         os.makedirs(out_dir, exist_ok=True)
         fout_src, fout_tgt_tk, fout_tgt_mwe = [os.path.join(out_dir, f) for f in output_files]
 

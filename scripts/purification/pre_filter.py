@@ -13,7 +13,7 @@ LOWER = False
 DELIM = "￨"
 
 parser = argparse.ArgumentParser(description='clean')
-parser.add_argument('--inputs', type=str, default='outputs/',
+parser.add_argument('--dir', type=str, default='../new_dataset/new_clean/',
                     help='directory of src/tgt_train/valid/test.txt files')
 parser.add_argument('--dataset', type=str, required=True, help='train, valid test')
 args = parser.parse_args()
@@ -26,23 +26,23 @@ input_files = [
 
 ]
 
-fin_src_tk, fin_tgt_tk, fin_tgt_mwe = [os.path.join(args.inputs, "{}/{}".format(DATASET, f)) for f in input_files]
+fin_src_tk, fin_tgt_tk, fin_tgt_mwe = [os.path.join(args.dir, "{}/{}".format(DATASET, f)) for f in input_files]
 
 output_files = [
     "tgt_%s.norm.filter.tk.txt" % DATASET,
     "tgt_%s.norm.filter.mwe.txt" % DATASET
 ]
-out_dir = "outputs/{}".format(DATASET)
-fout_tgt_tk, fout_tgt_mwe = [os.path.join(out_dir, f) for f in output_files]
+# out_dir = "outputs/{}".format(DATASET)
+fout_tgt_tk, fout_tgt_mwe = [os.path.join(args.dir, "{}/{}".format(DATASET, f)) for f in output_files]
 
 # ----------------------------------------------- #
 # --- Filtering sentences without any numbers --- #
 # ----------------------------------------------- #
 
 nums = re.compile('[0-9]+')
-temp_dir = "outputs/{}/temp".format(DATASET)
+temp_dir = os.path.join(args.dir, "{}/temp".format(DATASET))
 os.makedirs(temp_dir, exist_ok=True)
-tmpf = "outputs/{}/temp/noNumbers.txt".format(DATASET)
+tmpf = os.path.join(temp_dir, "noNumbers.txt")
 out = []
 total = 0
 discard = 0
@@ -64,7 +64,7 @@ with io.open(fin_tgt_mwe, 'r', encoding='utf-8') as fin, io.open(tmpf, 'w+', enc
         fout.write("{}\n".format(remaining))
 
 words = sum([len(x.split()) for x in out])
-print("{} sentences with {} words out of {} sentences are discarded".format(len(out), words, total))
+print("{} sentences out of {} sentences are discarded".format(len(out), total))
 print("Some discarded sentences:")
 for x in out[:10]:
     print(x)
