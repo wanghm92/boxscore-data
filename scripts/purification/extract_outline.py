@@ -31,6 +31,8 @@ pattern5 = re.compile("\d+ (?:- )?(?:of|for) (?:- )?(?:\S+ )?\d+ \S+")
 pattern6 = re.compile("\( \d+ - \d+ \)")
 pattern7 = re.compile("\d+ - \d+")
 
+count_missing = dict.fromkeys(list(range(1, 43)), 0)
+
 word2record = {
     8: ('board', 'REB'),
     9: ('assist', 'AST'),
@@ -211,6 +213,7 @@ def _construct_dummy_plan(table, rcd2idx):
     print(paragraph_plan_ids)
     return ' '.join(paragraph_plan_ids), ' '.join(paragraph_plan)
 '''
+
 
 # ------------------------------- #
 # --- very important patterns --- #
@@ -548,6 +551,9 @@ def get_records(phrase, num2rcds, the_other_team_records):
     # if correct_phrase != original_phrase:
     #     print("*** CORRECTON *** \n original_phrase = {}\ncorrect_phrase = {}".format(original_phrase, correct_phrase))
 
+    if not len(result) > 0:
+        count_missing[pattern_num] += 1
+
     return result, correct_phrase, numbers_are_at
 
 
@@ -583,7 +589,7 @@ def main(args, DATASET):
     player_not_found = 0
 
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
-    JSON_DIR = "../new_dataset/new_json/"
+    JSON_DIR = "../new_dataset/new_jsonl/"
 
     js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
     input_files = [
@@ -954,7 +960,7 @@ def main(args, DATASET):
     print("{} sentences out of {} are discarded due to empty content plan".format(empty_sent, sent_count))
     print("{} samples are retained".format(output_count))
     print("{} sentences out of {} contains players not available from the table".format(player_not_found, sent_count))
-
+    print("count_missing = {}".format(count_missing))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')

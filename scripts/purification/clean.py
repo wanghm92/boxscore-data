@@ -240,13 +240,6 @@ def get_player_name_one(sample):
 # --- fix tokenization errors --- #
 # ------------------------------- #
 
-p1 = re.compile("\d+\.\S+|\S+\.\d+")
-p2 = re.compile("([0-9]+)(F\S)")
-p3 = re.compile("\d+,\d+")
-p4 = re.compile("\S+,\S+")
-p5 = re.compile("\d+-\d+")
-p6 = re.compile("(\S+)(three_point)")
-
 post_fixes = {
     ' - -': ' ,',
     'Jan.': 'Jan',
@@ -291,6 +284,13 @@ post_fixes = {
     ' 4 - of - 7 7 ': ' 4 - of - 7 '
 }
 
+p1 = re.compile("\d+\.\S+|\S+\.\d+")
+p2 = re.compile("([0-9]+)(F\S)")
+p3 = re.compile("\d+,\d+")
+p4 = re.compile("\S+,\S+")
+p5 = re.compile("\d+-\d+")
+p6 = re.compile("(\S+)(three_point)")
+p7 = re.compile("(\S+)two_point")
 
 def fix_tokenization(s):
     clean = []
@@ -343,6 +343,12 @@ def fix_tokenization(s):
             except:
                 pass
             w = ' '.join(pieces)
+            print("changed to {}".format(w))
+
+        if re.search(p7, w):
+            pre = re.findall(p7, w)[0]
+            print("Original {}".format(w))
+            w = ' '.join([pre, 'two_point'])
             print("changed to {}".format(w))
 
         clean.append(w.strip())
@@ -469,6 +475,7 @@ def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe):
                     t = "{}".format(t)
                 all_num_tks.append(t)
             all_num_dataset.append(" ".join(all_num_tks))
+
         for s in all_num_dataset:
             s = fix_tokenization(s)
             fout_mwe.write("{}\n".format(s))

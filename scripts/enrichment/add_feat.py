@@ -1,5 +1,7 @@
 import re, io, copy, os, sys, argparse, json, pdb, jsonlines
 from tqdm import tqdm
+from collections import Counter
+from pprint import pprint
 sys.path.insert(0, '../purification/')
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
@@ -50,8 +52,9 @@ def get_arena(records, summary, tbl):
     home_alias_rcd = DELIM.join([team2alias.get(hometeam, 'N/A'), hometeam, 'TEAM-ALIAS', 'HOME'])
     away_alias_rcd = DELIM.join([team2alias.get(awayteam, 'N/A'), awayteam, 'TEAM-ALIAS', 'AWAY'])
 
-    records.extend([arena_rcd, home_alias_rcd, away_alias_rcd])
-    return records
+    output = copy.deepcopy(records)
+    output.extend([arena_rcd, home_alias_rcd, away_alias_rcd])
+    return output
 
 
 # ------------------------------------- #
@@ -68,6 +71,12 @@ def get_arena(records, summary, tbl):
     7. [done] 2-4 quarter diff
 """
 
+num2ord = {
+    1: 'FIRST',
+    2: 'SECOND',
+    3: 'THIRD',
+    4: 'FOURTH',
+}
 
 def game_points(records):
     team_points = {}
@@ -102,22 +111,22 @@ def game_points(records):
     # pprint(combo_pts)
 
     for team in ['HOME', 'AWAY']:
-        first_half_pts = DELIM.join([str(combo_pts[team]['1st_half']), team_names[team], 'TEAM-PTS_HALF1', team])
-        second_half_pts = DELIM.join([str(combo_pts[team]['2nd_half']), team_names[team], 'TEAM-PTS_HALF2', team])
+        first_half_pts = DELIM.join([str(combo_pts[team]['1st_half']), team_names[team], 'TEAM-PTS_HALF-FIRST', team])
+        second_half_pts = DELIM.join([str(combo_pts[team]['2nd_half']), team_names[team], 'TEAM-PTS_HALF-SECOND', team])
         quarter_pts_1to3 = DELIM.join(
-            [str(combo_pts[team]['first_three_quarter']), team_names[team], 'TEAM-PTS_QTR1to3', team])
+            [str(combo_pts[team]['first_three_quarter']), team_names[team], 'TEAM-PTS_QTR-1to3', team])
         quarter_pts_2to4 = DELIM.join(
-            [str(combo_pts[team]['last_three_quarter']), team_names[team], 'TEAM-PTS_QTR2to4', team])
+            [str(combo_pts[team]['last_three_quarter']), team_names[team], 'TEAM-PTS_QTR-2to4', team])
         records.extend([first_half_pts, second_half_pts, quarter_pts_1to3, quarter_pts_2to4])
 
     first_half_diff = combo_pts['1st_half_diff']
     team = 'HOME' if first_half_diff > 0 else 'AWAY'
-    first_half_diff = DELIM.join([str(abs(first_half_diff)), team_names[team], 'TEAM-PTS_HALF_DIFF1', team])
+    first_half_diff = DELIM.join([str(abs(first_half_diff)), team_names[team], 'TEAM-PTS_HALF_DIFF-FIRST', team])
     records.append(first_half_diff)
 
     second_half_diff = combo_pts['2nd_half_diff']
     team = 'HOME' if second_half_diff > 0 else 'AWAY'
-    second_half_diff = DELIM.join([str(abs(second_half_diff)), team_names[team], 'TEAM-PTS_HALF_DIFF2', team])
+    second_half_diff = DELIM.join([str(abs(second_half_diff)), team_names[team], 'TEAM-PTS_HALF_DIFF-SECOND', team])
     records.append(second_half_diff)
 
     total_diff = combo_pts['total_diff']
@@ -128,7 +137,7 @@ def game_points(records):
     for i in range(1, 5):
         quarter_diff = combo_pts['quarter_diffs'][i]
         team = 'HOME' if quarter_diff > 0 else 'AWAY'
-        quarter_diff = DELIM.join([str(abs(quarter_diff)), team_names[team], 'TEAM-PTS_QTR_DIFF{}'.format(i), team])
+        quarter_diff = DELIM.join([str(abs(quarter_diff)), team_names[team], 'TEAM-PTS_QTR_DIFF-{}'.format(num2ord[i]), team])
         records.append(quarter_diff)
 
     return records
@@ -231,7 +240,7 @@ def get_sums(records, idx):
         try:
             assert stats[team].start_sum + stats[team].bench_sum == stats[team].total_sum
         except AssertionError:
-            print("team_names : {}".format(team_names))
+            print("\nteam_names : {}".format(team_names))
             mysum = stats[team].start_sum + stats[team].bench_sum
             theirsum = stats[team].total_sum
             if abs(mysum-theirsum) == 1:
@@ -248,8 +257,8 @@ def get_sums(records, idx):
 
     for team in ['HOME', 'AWAY']:
         #         pprint(vars(stats[team]))
-        start_sum = DELIM.join([str(stats[team].start_sum), stats[team].team, 'TEAM-START_SUM', team])
-        bench_sum = DELIM.join([str(stats[team].bench_sum), stats[team].team, 'TEAM-BENCH_SUM', team])
+        start_sum = DELIM.join([str(stats[team].start_sum), stats[team].team, 'TEAM-PTS_SUM-START', team])
+        bench_sum = DELIM.join([str(stats[team].bench_sum), stats[team].team, 'TEAM-PTS_SUM-BENCH', team])
 
         fg_att = DELIM.join([str(stats[team].fg['attempt']), stats[team].team, 'TEAM-FGA', team])
         fg_md = DELIM.join([str(stats[team].fg['made']), stats[team].team, 'TEAM-FGM', team])
@@ -386,6 +395,15 @@ def player_features(records, add_dd=False):
 '''
 
 
+def _print_additional_rcdtypes(old, new):
+    print(len(old))
+    print(len(new))
+    old_keys = [i.split(DELIM)[-2] for i in old]
+    new_keys = [i.split(DELIM)[-2] for i in new]
+    print(sorted(list(set(new_keys) - set(old_keys))))
+    pdb.set_trace()
+
+
 def main(js, src, tgt, src_out, json_out):
 
     with jsonlines.open(js, 'r') as fin_js, \
@@ -408,9 +426,10 @@ def main(js, src, tgt, src_out, json_out):
             targets = [x.lower() for x in targets]
 
         output = []
+
         for idx, (tbl, inp, summary) in tqdm(enumerate(zip(tables, inputs, targets))):
             records = inp.strip().split()
-
+            # print(len(records))
             # (1) game arena
             records_feat = get_arena(records, summary, tbl)
 
@@ -423,6 +442,8 @@ def main(js, src, tgt, src_out, json_out):
             # (4) Player features
             # records_feat = player_features(records_feat)
             output.append(' '.join(records_feat))
+            # print(len(records_feat))
+            # _print_additional_rcdtypes(records, records_feat)
 
         # TODO: save as json for WS2017
         # js_out = txt2json(output)
