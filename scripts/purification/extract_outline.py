@@ -594,10 +594,11 @@ def main(args, DATASET):
     js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
     input_files = [
         "src_%s.norm.tk.txt" % DATASET,
+        "tgt_%s.norm.mwe.txt" % DATASET,
         "tgt_%s.norm.filter.mwe.txt" % DATASET
     ]
 
-    clean_src, clean_tgt_filter = [os.path.join(BASE_DIR, f) for f in input_files]
+    clean_src, clean_tgt, clean_tgt_filter = [os.path.join(BASE_DIR, f) for f in input_files]
 
     output_files = [
         "%s.trim.json" % DATASET,
@@ -616,7 +617,8 @@ def main(args, DATASET):
     empty_sent = 0
     output_count = 0
     with io.open(clean_src, 'r', encoding='utf-8') as fin_src, \
-            io.open(clean_tgt_filter, 'r', encoding='utf-8') as fin_tgt, \
+            io.open(clean_tgt, 'r', encoding='utf-8') as fin_tgt, \
+            io.open(clean_tgt_filter, 'r', encoding='utf-8') as fin_tgt_filter, \
             jsonlines.open(js, 'r') as fin_js, \
             io.open(js_clean, 'w+', encoding='utf-8') as fout_js, \
             io.open(cp_out_tks, 'w+', encoding='utf-8') as fout_cp_tks, \
@@ -628,19 +630,23 @@ def main(args, DATASET):
 
         output_table = []
 
-        targets = fin_tgt.read()
+        original_summaries = fin_tgt.read().strip().split('\n')
+
+        targets = fin_tgt_filter.read()
         targets = targets.strip().split('\n')
 
         inputs = fin_src.read()
         inputs = inputs.strip().split('\n')
+
+        assert len(original_summaries) == len(targets) == len(inputs)
 
         if LOWER:
             inputs = [x.lower() for x in inputs]
             targets = [x.lower() for x in targets]
 
         city2team = {}
-        for idx, (inp, summary, table_original) in \
-                tqdm(enumerate(zip(inputs, targets, fin_js.iter(type=dict, skip_invalid=True)))):
+        for idx, (inp, summary, full_summary, table_original) in \
+                tqdm(enumerate(zip(inputs, targets, original_summaries, fin_js.iter(type=dict, skip_invalid=True)))):
             current_sent_players = OrderedDict()
             current_sent_teams = OrderedDict()
             # if idx > 30:
@@ -764,7 +770,11 @@ def main(args, DATASET):
                     # keep track which team is mentioned, the other one might still be useful
                     if team in this_game_teams:
                         this_game_teams.remove(team)
-                    team_records = table['Teams'][team]
+                    try:
+                        team_records = table['Teams'][team]
+                    except:
+                        pdb.set_trace()
+
                     this_sent_records.extend(team_records)
 
                 # only one team is mentioned, pass on the other team records in case needed
@@ -952,7 +962,7 @@ def main(args, DATASET):
                 fout_cp_ids.write("{}\n".format(paragraph_plan_ids))
                 fout_cp_tks.write("{}\n".format(paragraph_plan))
                 fout_tgt.write("{}\n".format(paragraph_text))
-                fout_tgt_full.write("{}\n".format(summary.strip()))
+                fout_tgt_full.write("{}\n".format(full_summary.strip()))
                 fout_ptr.write("{}\n".format(pointers))
 
         json.dump(output_table, fout_js)
