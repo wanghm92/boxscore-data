@@ -12,7 +12,7 @@ Taking care of extra line score items:
     'TEAM-PTS_TOTAL_DIFF'
 """
 
-import re, io, copy, os, sys, argparse, json, pdb, jsonlines
+import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil
 from tqdm import tqdm
 from collections import Counter, OrderedDict
 sys.path.insert(0, '../purification/')
@@ -592,9 +592,8 @@ def get_records(phrase, num2rcds, the_other_team_records):
 # ------------------------------- #
 RCD_PER_PLAYER = 21
 NUM_PLAYERS = 26
-RCD_PER_TEAM = 32
+RCD_PER_TEAM = 40
 NUM_TEAMS = 2
-SHARED = 7+1
 
 alias2team = knowledge_container.alias2team
 singular_prons = knowledge_container.singular_prons
@@ -617,21 +616,28 @@ def _any_other_player(sent):
     return False
 
 def main(args, DATASET):
-    player_not_found = 0
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
-    JSON_DIR = "../new_dataset/new_jsonl/"
+    # JSON_DIR = "../new_dataset/new_jsonl/"
+    # js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
 
-    js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
     input_files = [
+        "%s.ext.jsonl" % DATASET,
         "src_%s.norm.ext.txt" % DATASET,
         "tgt_%s.norm.mwe.txt" % DATASET,
         "tgt_%s.norm.filter.mwe.txt" % DATASET
     ]
 
-    clean_src, clean_tgt, clean_tgt_filter = [os.path.join(BASE_DIR, f) for f in input_files]
+    js, clean_src, clean_tgt, clean_tgt_filter = [os.path.join(BASE_DIR, f) for f in input_files]
+
+    for f in [js, clean_tgt, clean_tgt_filter]:
+        if not os.path.exists(f):
+            bname = os.path.basename(f)
+            print("{} does not exist, copying from ../new_dataset/new_clean/{}/{}".format(f, DATASET, bname))
+            shutil.copyfile("../new_dataset/new_clean/{}/{}".format(DATASET, bname), f)
 
     output_files = [
         "%s.trim.json" % DATASET,
+        "%s.trim.fulltgt.json" % DATASET,
         "%s_content_plan_tks.txt" % DATASET,
         "%s_content_plan_ids.txt" % DATASET,
         "%s_ptrs.txt" % DATASET,
@@ -640,9 +646,10 @@ def main(args, DATASET):
         "src_%s.norm.trim.txt" % DATASET
     ]
 
-    js_clean, cp_out_tks, cp_out_ids, ptrs_out, clean_tgt_trim, clean_tgt_trim_full, clean_src_trim = \
+    js_trim, js_trim_fulltgt, cp_out_tks, cp_out_ids, ptrs_out, clean_tgt_trim, clean_tgt_trim_full, clean_src_trim = \
         [os.path.join(BASE_DIR, f) for f in output_files]
 
+    player_not_found = 0
     sent_count = 0
     empty_sent = 0
     output_count = 0
@@ -651,7 +658,8 @@ def main(args, DATASET):
             io.open(clean_tgt, 'r', encoding='utf-8') as fin_tgt, \
             io.open(clean_tgt_filter, 'r', encoding='utf-8') as fin_tgt_filter, \
             jsonlines.open(js, 'r') as fin_js, \
-            io.open(js_clean, 'w+', encoding='utf-8') as fout_js, \
+            io.open(js_trim, 'w+', encoding='utf-8') as fout_js_trim, \
+            io.open(js_trim_fulltgt, 'w+', encoding='utf-8') as fout_js_full, \
             io.open(cp_out_tks, 'w+', encoding='utf-8') as fout_cp_tks, \
             io.open(cp_out_ids, 'w+', encoding='utf-8') as fout_cp_ids, \
             io.open(ptrs_out, 'w+', encoding='utf-8') as fout_ptr, \
@@ -659,7 +667,8 @@ def main(args, DATASET):
             io.open(clean_tgt_trim_full, 'w+', encoding='utf-8') as fout_tgt_full, \
             io.open(clean_src_trim, 'w+', encoding='utf-8') as fout_src:
 
-        output_table = []
+        output_table_trimtgt = []
+        output_table_fulltgt = []
 
         original_summaries = fin_tgt.read().strip().split('\n')
 
@@ -683,7 +692,7 @@ def main(args, DATASET):
 
             # ------ get record to index lookup ------ #
             rcd2idx = {}
-            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS + SHARED
+            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS
             for i, rcd in enumerate(inp.strip().split()):
                 value, field, rcd_type, ha = rcd.split(DELIM)
                 if value == 'N/A' or field == 'N/A':
@@ -697,7 +706,7 @@ def main(args, DATASET):
             single_number2rcds = {}
             for rcd in inp.strip().split():
                 value, field, rcd_type, ha = rcd.split(DELIM)
-                if rcd_type.startswith("TEAM") or rcd_type.startswith('GAME'):
+                if rcd_type.startswith("TEAM"):  # or rcd_type.startswith('GAME'):
                     if not field in table['Teams']:
                         table['Teams'].update({field: [rcd]})
                     else:
@@ -842,8 +851,7 @@ def main(args, DATASET):
 
                 this_sent_total_rcds = len(current_sent_players) * RCD_PER_PLAYER + \
                                        len(current_sent_teams) * RCD_PER_TEAM
-                cnt = sum([len([i for i in v if not 'DIFF' in i.split(DELIM)[-2]]) for k, v in num2rcds.items()]) + \
-                      sum([len([i for i in v if not 'ARENA' in i.split(DELIM)[-2]]) for k, v in str2rcds.items()])
+                cnt = sum([len(v) for k, v in num2rcds.items()]) + sum([len(v) for k, v in str2rcds.items()])
                 if not cnt == this_sent_total_rcds:
                     print(cnt)
                     print(this_sent_total_rcds)
@@ -1007,10 +1015,10 @@ def main(args, DATASET):
             if to_write:
                 output_count += 1
 
-                # new_table = update_table(table_original['day'], paragraph_text, inp)
-                # output_table.append(new_table)
-                # NOTE: writing the 'norm' table
-                output_table.append(table_original)
+                output_table_fulltgt.append(table_original)
+                temp_table = copy.deepcopy(table_original)
+                temp_table['summary'] = paragraph_text.split()  # substituting the trimmed summary
+                output_table_trimtgt.append(temp_table)
 
                 fout_cp_ids.write("{}\n".format(paragraph_plan_ids))
                 fout_cp_tks.write("{}\n".format(paragraph_plan))
@@ -1018,13 +1026,16 @@ def main(args, DATASET):
                 fout_tgt_full.write("{}\n".format(full_summary.strip()))
                 fout_ptr.write("{}\n".format(pointers))
 
-        json.dump(output_table, fout_js)
+        json.dump(output_table_fulltgt, fout_js_full)
+        json.dump(output_table_trimtgt, fout_js_trim)
 
     print("{} sentences out of {} are discarded due to empty content plan".format(empty_sent, sent_count))
     print("{} samples are retained".format(output_count))
     print("{} sentences out of {} contains players not available from the table".format(player_not_found, sent_count))
     print("count_missing = {}".format(count_missing))
     print("dummy = {}".format(dummy))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
     parser.add_argument('--dir', type=str, default='../new_dataset/new_extend/',

@@ -125,7 +125,14 @@ class Domain_Knowledge:
             'Wizards': ['Verizon_Center']
         }
 
-
-
+        self.line_keys_ext = [
+            'TEAM-PTS_QTR2', 'TEAM-FT_PCT', 'TEAM-PTS_QTR1', 'TEAM-PTS_QTR4', 'TEAM-PTS_QTR3', 'TEAM-CITY', 'TEAM-PTS',
+            'TEAM-AST', 'TEAM-LOSSES', 'TEAM-NAME', 'TEAM-WINS', 'TEAM-REB', 'TEAM-TOV', 'TEAM-FG3_PCT', 'TEAM-FG_PCT',
+            'TEAM-ARENA', 'TEAM-ALIAS', 'TEAM-PTS_HALF-FIRST', 'TEAM-PTS_HALF-SECOND', 'TEAM-PTS_QTR-1to3',
+            'TEAM-PTS_QTR-2to4', 'TEAM-PTS_HALF_DIFF-FIRST', 'TEAM-PTS_HALF_DIFF-SECOND', 'TEAM-PTS_TOTAL_DIFF',
+            'TEAM-PTS_QTR_DIFF-FIRST', 'TEAM-PTS_QTR_DIFF-SECOND', 'TEAM-PTS_QTR_DIFF-THIRD', 'TEAM-PTS_QTR_DIFF-FOURTH',
+            'TEAM-PTS_SUM-START', 'TEAM-PTS_SUM-BENCH', 'TEAM-FGA', 'TEAM-FGM', 'TEAM-FTA', 'TEAM-FTM', 'TEAM-FG3A',
+            'TEAM-FG3M', 'TEAM-OREB', 'TEAM-DREB', 'TEAM-STL', 'TEAM-BLK'
+        ]
 
 

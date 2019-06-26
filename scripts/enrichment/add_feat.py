@@ -48,12 +48,14 @@ def get_arena(records, summary, tbl):
     if this_arena is None:
         this_arena = team2arenas[hometeam][_get_arena_old_new(hometeam, year)]
 
-    arena_rcd = DELIM.join([this_arena, hometeam, 'GAME-ARENA', 'HOME'])
+    home_arena_rcd = DELIM.join([this_arena, hometeam, 'TEAM-ARENA', 'HOME'])
+    # dummy arena record for away team to keep it balanced, not necessary
+    away_arena_rcd = DELIM.join(['N/A', awayteam, 'TEAM-ARENA', 'AWAY'])
     home_alias_rcd = DELIM.join([team2alias.get(hometeam, 'N/A'), hometeam, 'TEAM-ALIAS', 'HOME'])
     away_alias_rcd = DELIM.join([team2alias.get(awayteam, 'N/A'), awayteam, 'TEAM-ALIAS', 'AWAY'])
 
     output = copy.deepcopy(records)
-    output.extend([arena_rcd, home_alias_rcd, away_alias_rcd])
+    output.extend([home_arena_rcd, away_arena_rcd, home_alias_rcd, away_alias_rcd])
     return output
 
 
@@ -122,23 +124,31 @@ def game_points(records):
     first_half_diff = combo_pts['1st_half_diff']
     team = 'HOME' if first_half_diff > 0 else 'AWAY'
     first_half_diff = DELIM.join([str(abs(first_half_diff)), team_names[team], 'TEAM-PTS_HALF_DIFF-FIRST', team])
-    records.append(first_half_diff)
+    the_other_team = 'HOME' if team == 'AWAY' else 'AWAY'
+    temp = DELIM.join(['N/A', team_names[the_other_team], 'TEAM-PTS_HALF_DIFF-FIRST', the_other_team])
+    records.extend([first_half_diff, temp])
 
     second_half_diff = combo_pts['2nd_half_diff']
     team = 'HOME' if second_half_diff > 0 else 'AWAY'
     second_half_diff = DELIM.join([str(abs(second_half_diff)), team_names[team], 'TEAM-PTS_HALF_DIFF-SECOND', team])
-    records.append(second_half_diff)
+    the_other_team = 'HOME' if team == 'AWAY' else 'AWAY'
+    temp = DELIM.join(['N/A', team_names[the_other_team], 'TEAM-PTS_HALF_DIFF-SECOND', the_other_team])
+    records.extend([second_half_diff, temp])
 
     total_diff = combo_pts['total_diff']
     team = 'HOME' if total_diff > 0 else 'AWAY'
     total_diff = DELIM.join([str(abs(total_diff)), team_names[team], 'TEAM-PTS_TOTAL_DIFF', team])
-    records.append(total_diff)
+    the_other_team = 'HOME' if team == 'AWAY' else 'AWAY'
+    temp = DELIM.join(['N/A', team_names[the_other_team], 'TEAM-PTS_TOTAL_DIFF', the_other_team])
+    records.extend([total_diff, temp])
 
     for i in range(1, 5):
         quarter_diff = combo_pts['quarter_diffs'][i]
         team = 'HOME' if quarter_diff > 0 else 'AWAY'
         quarter_diff = DELIM.join([str(abs(quarter_diff)), team_names[team], 'TEAM-PTS_QTR_DIFF-{}'.format(num2ord[i]), team])
-        records.append(quarter_diff)
+        the_other_team = 'HOME' if team == 'AWAY' else 'AWAY'
+        temp = DELIM.join(['N/A', team_names[the_other_team], 'TEAM-PTS_QTR_DIFF-{}'.format(num2ord[i]), the_other_team])
+        records.extend([quarter_diff, temp])
 
     return records
 
@@ -404,12 +414,30 @@ def _print_additional_rcdtypes(old, new):
     pdb.set_trace()
 
 
+def _update_linescores(tbl, records_feat):
+    line_keys_ext = sorted(knowledge_container.line_keys_ext)
+
+    home = {x.split(DELIM)[2]: x.split(DELIM)[0]
+            for x in records_feat if x.split(DELIM)[-1] == 'HOME' and x.split(DELIM)[2].startswith('TEAM')}
+    away = {x.split(DELIM)[2]: x.split(DELIM)[0]
+            for x in records_feat if x.split(DELIM)[-1] == 'AWAY' and x.split(DELIM)[2].startswith('TEAM')}
+    out = copy.deepcopy(tbl)
+    out['home_line'].update(home)
+    out['vis_line'].update(away)
+
+    assert sorted(list(out['home_line'].keys())) == line_keys_ext
+    assert sorted(list(out['vis_line'].keys())) == line_keys_ext
+
+    return out
+
+
 def main(js, src, tgt, src_out, json_out):
 
     with jsonlines.open(js, 'r') as fin_js, \
             io.open(src, 'r', encoding='utf-8') as fin_src, \
             io.open(tgt, 'r', encoding='utf-8') as fin_tgt, \
-            io.open(src_out, 'w+', encoding='utf-8') as fout:
+            io.open(src_out, 'w+', encoding='utf-8') as fout, \
+            jsonlines.open(json_out, 'w') as fout_js:
 
         targets = fin_tgt.read()
         targets = targets.strip().split('\n')
@@ -444,13 +472,12 @@ def main(js, src, tgt, src_out, json_out):
             output.append(' '.join(records_feat))
             # print(len(records_feat))
             # _print_additional_rcdtypes(records, records_feat)
-
-        # TODO: save as json for WS2017
-        # js_out = txt2json(output)
+            tbl_out = _update_linescores(tbl, records_feat)
+            # print(tbl_out['home_line'].keys())
+            fout_js.write(tbl_out)
 
         for s in output:
             fout.write("{}\n".format(s))
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
@@ -477,7 +504,7 @@ if __name__ == "__main__":
 
         output_files = [
             "src_%s.norm.ext.txt" % DATASET,
-            "%s.ext.json" % DATASET,
+            "%s.ext.jsonl" % DATASET,
         ]
 
         src_out, json_out = [os.path.join(OUT_DIR, f) for f in output_files]

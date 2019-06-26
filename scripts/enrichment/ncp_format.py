@@ -6,6 +6,7 @@
 
 import re, io, copy, os, sys, argparse, json, pdb
 from tqdm import tqdm
+sys.path.insert(0, '../purification/')
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 
@@ -66,7 +67,7 @@ def main(args, DATASET):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--dir', type=str, default='../new_dataset/new_clean/',
+    parser.add_argument('--dir', type=str, default='../new_dataset/new_extend/',
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
