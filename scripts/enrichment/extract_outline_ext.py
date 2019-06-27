@@ -27,6 +27,10 @@ PAD_WORD = '<blank>'
 UNK_WORD = '<unk>'
 BOS_WORD = '<s>'
 EOS_WORD = '</s>'
+MIN_PLAN=10
+MAX_PLAN=80
+MIN_SUMM=50
+MAX_SUMM=350
 
 # ------------------------------- #
 # --- very important patterns --- #
@@ -652,8 +656,10 @@ def main(args, DATASET):
     player_not_found = 0
     sent_count = 0
     empty_sent = 0
+    empty_plan = 0
     output_count = 0
     dummy = 0
+    too_long_or_short = 0
     with io.open(clean_src, 'r', encoding='utf-8') as fin_src, \
             io.open(clean_tgt, 'r', encoding='utf-8') as fin_tgt, \
             io.open(clean_tgt_filter, 'r', encoding='utf-8') as fin_tgt_filter, \
@@ -992,25 +998,24 @@ def main(args, DATASET):
                 print(pointers)
                 sys.exit(0)
 
-            if len(paragraph_plan_ids) > 0:
+            paragraph_text = ' . '.join(paragraph_text)
+            summ_len = len(paragraph_text.split())
+            if (MIN_PLAN <= len(paragraph_plan_ids) <= MAX_PLAN) and (MIN_SUMM <= summ_len <= MAX_SUMM):
                 to_write = True
                 paragraph_plan_ids = ' '.join(paragraph_plan_ids)
                 paragraph_plan = ' '.join(paragraph_plan)
-                paragraph_text = ' . '.join(paragraph_text)
                 pointers = ' '.join(map(str, pointers))
                 fout_src.write("{}\n".format(inp.strip()))
 
             else:
-                print("content_plan empty at {}".format(idx))
-                print(summary)
                 to_write = False
-                # paragraph_plan_ids, paragraph_plan = _construct_dummy_plan(table, rcd2idx)
-                # paragraph_text = summary
-                # pointers = ' '.join(['0,0'] * len(paragraph_plan.split()))
-                # if DATASET in ['test', 'valid']:
-                #     to_write = True
-                # else:
-                #     to_write = False
+                if len(paragraph_plan_ids) == 0:
+                    empty_plan += 1
+                    print("content_plan empty at {}".format(idx))
+                    print(summary)
+                else:
+                    too_long_or_short += 1
+                    # print("discarded since it's beyond required lengths \n{}\n".format(paragraph_plan, paragraph_text))
 
             if to_write:
                 output_count += 1
@@ -1030,8 +1035,9 @@ def main(args, DATASET):
         json.dump(output_table_trimtgt, fout_js_trim)
 
     print("{} sentences out of {} are discarded due to empty content plan".format(empty_sent, sent_count))
-    print("{} samples are retained".format(output_count))
     print("{} sentences out of {} contains players not available from the table".format(player_not_found, sent_count))
+    print("{} samples are retained, {} empty content plans, {} are beyond length ranges"
+          .format(output_count, empty_plan, too_long_or_short))
     print("count_missing = {}".format(count_missing))
     print("dummy = {}".format(dummy))
 
