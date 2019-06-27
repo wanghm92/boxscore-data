@@ -518,9 +518,10 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
                 next_char += 1
         ndld += 1 - normalized_damerau_levenshtein_distance(ref_str, hypo_str)
 
-    rg = correct/total_pred
-    precision = true_positive/total_pred
-    recall = true_positive/total_gold
+    rg = correct/total_pred*100
+    precision = true_positive/total_pred*100
+    recall = true_positive/total_gold*100
+    f1 = 2*precision*recall/(precision+recall)
     ndld /= len(inputs)
 
     metrics = {
@@ -528,7 +529,8 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
         "Relation Generation (RG) %Precision": rg,
         "Content Selection (CS) %Precision": precision,
         "Content Selection (CS) %Recall": recall,
-        "Content Ordering (CO)": ndld,
+        "Content Selection (CS) %F1": f1,
+        "Content Ordering (CO)": ndld*100,
     }
     # pdb.set_trace()
     pprint(metrics)

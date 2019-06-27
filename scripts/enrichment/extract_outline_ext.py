@@ -1001,6 +1001,7 @@ def main(args, DATASET):
             paragraph_text = ' . '.join(paragraph_text)
             summ_len = len(paragraph_text.split())
             if (MIN_PLAN <= len(paragraph_plan_ids) <= MAX_PLAN) and (MIN_SUMM <= summ_len <= MAX_SUMM):
+            # if len(paragraph_plan_ids) > 0:
                 to_write = True
                 paragraph_plan_ids = ' '.join(paragraph_plan_ids)
                 paragraph_plan = ' '.join(paragraph_plan)
