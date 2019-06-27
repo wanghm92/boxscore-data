@@ -396,8 +396,8 @@ def get_records(phrase, num2rcds, the_other_team_records):
             cp1, num1 = retrieve_record(num1, num2rcds, priority=['TEAM-WINS'])
             cp2, num2 = retrieve_record(num2, num2rcds, priority=['TEAM-LOSSES'])
             if cp1 is None or cp2 is None:
-                cp1, num1 = retrieve_record(num1, num2rcds, priority=['TEAM-WINS'])
-                cp2, num2 = retrieve_record(num2, num2rcds, priority=['TEAM-LOSSES'])
+                cp1, num1 = retrieve_record(num1, num2rcds, priority=['TEAM-LOSSES'])
+                cp2, num2 = retrieve_record(num2, num2rcds, priority=['TEAM-WINS'])
                 if cp1 is None or cp2 is None:
                     # if len(priority) > 1, cp1 and cp2 are lists
                     temp1, num1 = retrieve_record(num1, num2rcds, priority=['FG3M', 'FGM', 'FTM', 'REB'])
