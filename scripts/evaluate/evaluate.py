@@ -32,7 +32,7 @@ pattern3 = re.compile("\d+ percent from the \S+")
 pattern4 = re.compile("\d+ (?:- )?(?:of|for|-) (?:- )?(?:\S+ )?\d+ (?:shooting )?from (?:the )?\S+")
 pattern5 = re.compile("\d+ (?:- )?(?:of|for) (?:- )?(?:\S+ )?\d+ \S+")
 pattern6 = re.compile("\( \d+ - \d+ \)")
-pattern7 = re.compile("\d+ - \d+")
+pattern7 = re.compile("\d+ - \d+ \S+")
 
 count_missing = dict.fromkeys(list(range(1, 43)), 0)
 
@@ -367,24 +367,52 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
                                 break
 
         elif pattern_num == 7:
-            if the_other_team_records is not None:
-                p1 = ['TEAM-PTS']
-                p2 = ['TEAM-PTS']
+            tmp = re.compile("\d+ - \d+ (\S+)")
+            suffix = re.findall(tmp, ' '.join(phrase.split(delim)).strip())[0]
+
+            suffix2rcdtype = {
+                'FG': ['FGM', 'FGA'],
+                '3PT': ['FG3M', 'FG3A'],
+                'FT': ['FTM', 'FTA']
+            }
+
+            if suffix in suffix2rcdtype:
+                p1 = [suffix2rcdtype[suffix][0]]
+                p2 = [suffix2rcdtype[suffix][1]]
                 cp1, num1 = retrieve_record(num1, num2rcds, priority=p1)
-                cp2, num2 = retrieve_record(num2, the_other_team_records, priority=p2)
-                if cp1 is None or cp2 is None:
+                cp2, num2 = retrieve_record(num2, num2rcds, priority=p2)
+            else:
+                if the_other_team_records is not None:
                     p1 = ['TEAM-PTS']
                     p2 = ['TEAM-PTS']
-                    cp1, num1 = retrieve_record(num1, the_other_team_records, priority=p1)
-                    cp2, num2 = retrieve_record(num2, num2rcds, priority=p2)
+                    cp1, num1 = retrieve_record(num1, num2rcds, priority=p1)
+                    cp2, num2 = retrieve_record(num2, the_other_team_records, priority=p2)
+                    if cp1 is None or cp2 is None:
+                        p1 = ['TEAM-PTS']
+                        p2 = ['TEAM-PTS']
+                        cp1, num1 = retrieve_record(num1, the_other_team_records, priority=p1)
+                        cp2, num2 = retrieve_record(num2, num2rcds, priority=p2)
 
-                if cp1 is None or cp2 is None:
-                    # if not found separately, combine and continue searching
-                    for k, v in the_other_team_records.items():
-                        if not k in num2rcds:
-                            num2rcds[k] = v
-                        else:
-                            num2rcds[k].extend(v)
+                    if cp1 is None or cp2 is None:
+                        # if not found separately, combine and continue searching
+                        for k, v in the_other_team_records.items():
+                            if not k in num2rcds:
+                                num2rcds[k] = v
+                            else:
+                                num2rcds[k].extend(v)
+                        p1 = ['TEAM-WINS', 'TEAM-PTS', 'REB', 'AST', 'FTM', 'FGM', 'FG3M', 'PTS_HALF-', 'PTS_QTR-']
+                        p2 = ['TEAM-LOSSES', 'TEAM-PTS', 'REB', 'AST', 'FTA', 'FGA', 'FG3A', 'PTS_HALF-', 'PTS_QTR-']
+                        temp1, num1 = retrieve_record(num1, num2rcds, priority=p1)
+                        temp2, num2 = retrieve_record(num2, num2rcds, priority=p2)
+                        cp1, cp2 = None, None
+                        for x in temp1:
+                            for y in temp2:
+                                if x.split(DELIM)[2][:-1] == y.split(DELIM)[2][:-1] or (
+                                        x.split(DELIM)[2] == 'TEAM-WINS' and y.split(DELIM)[2] == 'TEAM-LOSSES'):
+                                    cp1 = x
+                                    cp2 = y
+                                    break
+                else:
                     p1 = ['TEAM-WINS', 'TEAM-PTS', 'REB', 'AST', 'FTM', 'FGM', 'FG3M', 'PTS_HALF-', 'PTS_QTR-']
                     p2 = ['TEAM-LOSSES', 'TEAM-PTS', 'REB', 'AST', 'FTA', 'FGA', 'FG3A', 'PTS_HALF-', 'PTS_QTR-']
                     temp1, num1 = retrieve_record(num1, num2rcds, priority=p1)
@@ -397,23 +425,10 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
                                 cp1 = x
                                 cp2 = y
                                 break
-            else:
-                p1 = ['TEAM-WINS', 'TEAM-PTS', 'REB', 'AST', 'FTM', 'FGM', 'FG3M', 'PTS_HALF-', 'PTS_QTR-']
-                p2 = ['TEAM-LOSSES', 'TEAM-PTS', 'REB', 'AST', 'FTA', 'FGA', 'FG3A', 'PTS_HALF-', 'PTS_QTR-']
-                temp1, num1 = retrieve_record(num1, num2rcds, priority=p1)
-                temp2, num2 = retrieve_record(num2, num2rcds, priority=p2)
-                cp1, cp2 = None, None
-                for x in temp1:
-                    for y in temp2:
-                        if x.split(DELIM)[2][:-1] == y.split(DELIM)[2][:-1] or (
-                                x.split(DELIM)[2] == 'TEAM-WINS' and y.split(DELIM)[2] == 'TEAM-LOSSES'):
-                            cp1 = x
-                            cp2 = y
-                            break
 
-                            # print('cp1 = {}'.format(cp1))
-                            # print('cp2 = {}'.format(cp2))
-                            # print('num2rcds = {}'.format(num2rcds))
+                                # print('cp1 = {}'.format(cp1))
+                                # print('cp2 = {}'.format(cp2))
+                                # print('num2rcds = {}'.format(num2rcds))
 
         if cp1 is None or cp2 is None:
             rebuild = [cp1 is None, cp2 is None]
@@ -515,7 +530,7 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
         "Content Selection (CS) %Recall": recall,
         "Content Ordering (CO)": ndld,
     }
-    pdb.set_trace()
+    # pdb.set_trace()
     pprint(metrics)
 
 # -------------- #
@@ -563,7 +578,7 @@ def _choose_most_likely(this_sent_records):
 
 def main(args):
     input_files = [
-        "src_%s.norm.trim.txt" % args.dataset,
+        "src_%s.norm.trim.ncp.txt" % args.dataset,
         "%s_content_plan_tks.txt" % args.dataset,
     ]
 
@@ -591,7 +606,8 @@ def main(args):
         hypo_outlines = []
         for idx, (inp, hypo) in tqdm(enumerate(zip(inputs, hypotheses))):
             city2team = {}
-            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS
+            # TODO: change the hard coded 4
+            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS + 4
 
             current_sent_players = OrderedDict()
             current_sent_teams = OrderedDict()
