@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-echo "add_feat"
-python add_feat.py
-echo "extract_outline_ext"
-python extract_outline_ext.py
-echo "finalize"
-python finalize.py
+#echo "add_feat"
+#python add_feat.py
+#echo "extract_outline_ext"
+#python extract_outline_ext.py
+#echo "finalize"
+#python finalize.py
 
 for DATA in train valid test
 do

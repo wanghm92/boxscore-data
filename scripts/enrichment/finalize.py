@@ -13,6 +13,9 @@ knowledge_container = Domain_Knowledge()
 prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
 assert len(prefix.split()) == 4
 
+
+
+
 def main(args, DATASET):
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
 
@@ -75,6 +78,10 @@ def main(args, DATASET):
             for idx, n in t['box_score']['FIRST_NAME'].items():
                 n.replace('.', '')
                 first_names[idx] = n
+
+            np = len(tmp['box_score']['FIRST_NAME'])
+            for i in range(18):
+                tmp['box_score']['DUMMY{}'.format(i)] = {str(k):'N/A' for k in range(np)}
 
             tmp['box_score']['FIRST_NAME'] = first_names
 
