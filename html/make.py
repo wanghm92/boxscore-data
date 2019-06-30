@@ -1,8 +1,4 @@
-import json
-import pandas
-import argparse
-import sys
-
+import json, pandas, argparse, os
 
 def print_table(f, table, seen):
     f.write("<table border=1 class=\"table table-hover table-striped table-bordered\">")
@@ -22,19 +18,8 @@ def print_table(f, table, seen):
     f.write("</table>")
 
 
-def main(arguments):
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('infile', help="Input file",
-                        type=argparse.FileType('r'))
-    # parser.add_argument('-o', '--outfile', help="Output file",
-    #                     default=sys.stdout, type=argparse.FileType('w'))
-
-    args = parser.parse_args(arguments)
-
-
-    data = json.load(args.infile)
+def main(infile, outdir):
+    data = json.load(infile)
 
     order = ["FIRST_NAME", "SECOND_NAME", "H/V", 'POS', 'MIN', 'PTS', 'REB', 'AST', 'BLK', 'TO', 'PF', 'STL', 'DREB', 'OREB', 'FGM',  'FGA', 'FG_PCT', 'FTM',   'FTA','FT_PCT','FG3M', 'FG3A','FG3_PCT']
     order2 = ["NAME", "CITY", "WINS", "LOSSES", "PTS", "QTR1", "QTR2", "QTR3", "QTR4", "AST", "REB", "TOV", "FG_PCT", "FT_PCT", "FG3_PCT"]
@@ -62,9 +47,7 @@ def main(arguments):
         line = line[order2]
         stats = stats.applymap(lambda a: "" if a == "N/A" else a)
 
-
-
-        f = open("game"+str(game_num)+".html", "w")
+        f = open(os.path.join(outdir, "game"+str(game_num)+".html"), "w")
         f.write("""<head>
 <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet"
           integrity="sha384-T8Gy5hrqNKT+hzMclPo118YTQO6cYprQmhrYwIiQ/3axmI1hQomh7Ud2hPOy8SP1" crossorigin="anonymous">
@@ -173,4 +156,10 @@ def main(arguments):
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[1:]))
+    parser = argparse.ArgumentParser(description='clean')
+    parser.add_argument('--src', type=str, required=True,
+                        help='directory of *.json')
+    parser.add_argument('--out', type=str, required=True,
+                        help='output directory to save the htmls')
+    args = parser.parse_args()
+    main(args.src, args.out)
