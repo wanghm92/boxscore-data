@@ -9,7 +9,7 @@
 for DATA in train valid test
 do
     echo "copying files to new_ws2017"
-    cp ../new_dataset/new_extend/$DATA/$DATA.trim.ws.json ../new_dataset/new_ws2017/$DATA.json
+    cp ../new_dataset/new_extend/$DATA/$DATA.trim.ws.json ../new_dataset/new_ws2017_v2/$DATA.json
 
     echo "copying files to ncpcc"
     cp ../new_dataset/new_extend/$DATA/*.ncp* ../new_dataset/new_ncpcc/$DATA

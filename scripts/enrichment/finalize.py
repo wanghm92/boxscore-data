@@ -79,9 +79,8 @@ def main(args, DATASET):
                 n.replace('.', '')
                 first_names[idx] = n
 
-            np = len(tmp['box_score']['FIRST_NAME'])
-            for i in range(18):
-                tmp['box_score']['DUMMY{}'.format(i)] = {str(k):'N/A' for k in range(np)}
+            # for i in range(18):
+            tmp['box_score']['<blank>'] = {str(k): '<blank>' for k in range(len(tmp['box_score']['FIRST_NAME']))}
 
             tmp['box_score']['FIRST_NAME'] = first_names
 
