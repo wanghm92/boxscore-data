@@ -104,16 +104,25 @@ def mark_records(sent):
             rep = "{}{}{}".format(delim, delim.join(f.split()), delim)
             x = x.replace(f, rep)
 
-    for p in [pattern1, pattern2, pattern3, pattern4, pattern5, pattern6, pattern7]:
+    for p in [pattern1, pattern2, pattern3, pattern4, pattern5, pattern6]:
         delim = "#DELIM{}#".format(i)
         i += 1
         for f in re.findall(p, x):
             rep = "{}{}{}".format(delim, delim.join(f.split()), delim)
             x = x.replace(f, rep)
 
+    for f in re.findall(pattern7, x):
+        delim = "#DELIM{}#".format(i)
+        i += 1
+        suffix = f.split()[-1]
+        if not suffix.startswith('#'):
+            rep = "{}{}{}".format(delim, delim.join(f.split()), delim)
+            x = x.replace(f, rep)
+
     for idx, (k, v) in (list(word2record.items()) + list(post_donts.items())):
         p = re.compile("\d+ (?:- )*{}(?:s|ed)*".format(k))
         delim = "#DELIM{}#".format(idx)
+        i += 1
         for f in re.findall(p, x):
             rep = "{}{}{}".format(delim, delim.join(f.split()), delim)
             x = x.replace(f, rep)
@@ -180,6 +189,7 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
     temp = re.findall(p, phrase)
     pattern_num = int(temp[0])
     if not all([int(x) == pattern_num for x in temp]):
+        pdb.set_trace()
         raise RuntimeError("{} is misformatted".format(phrase))
 
     delim = "#DELIM{}#".format(pattern_num)
@@ -584,15 +594,15 @@ def main(args):
         "%s_content_plan_tks.txt" % args.dataset,
     ]
 
-    BASE_DIR = os.path.join(args.src_dir, "{}".format(args.dataset))
+    BASE_DIR = os.path.join(args.path, "{}".format(args.dataset))
     gold_src, gold_plan = [os.path.join(BASE_DIR, f) for f in input_files]
 
-    cp_out_hypo = "{}.hypo".format(args.cp_out)
-    cp_out_gold = "{}.gold".format(args.cp_out)
+    cp_out_hypo = "{}.cp.hypo".format(args.hypo)
+    cp_out_gold = "{}.cp.gold".format(args.hypo)
 
     with io.open(gold_src, 'r', encoding='utf-8') as fin_src, \
             io.open(gold_plan, 'r', encoding='utf-8') as fin_cp, \
-            io.open(args.hypothesis, 'r', encoding='utf-8') as fin_test, \
+            io.open(args.hypo, 'r', encoding='utf-8') as fin_test, \
             io.open(cp_out_hypo, 'w+', encoding='utf-8') as fout_cp_hypo, \
             io.open(cp_out_gold, 'w+', encoding='utf-8') as fout_cp_gold:
 
@@ -795,14 +805,12 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--src_dir', type=str, default='../new_dataset/new_extend/',
+    parser.add_argument('--path', type=str, default='/home/hongmin_wang/table2text_nlg/harvardnlp/boxscore-data/scripts/new_dataset/new_extend',
                         help='directory of src/tgt_train/valid/test.txt files')
-    parser.add_argument('--hypothesis', type=str, required=True,
+    parser.add_argument('--dataset', type=str, default='valid', choices=['valid', 'test'])
+    parser.add_argument('--hypo', type=str, required=True,
                         help='directory of src/tgt_train/valid/test.txt files')
-    parser.add_argument('--cp_out', type=str, required=True,
-                        help='directory of src/tgt_train/valid/test.txt files')
-    parser.add_argument('--dataset', type=str, required=True, choices=['valid', 'test'])
-    
+
     args = parser.parse_args()
 
     print("Evaluating {} set".format(args.dataset))
