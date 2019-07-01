@@ -34,7 +34,7 @@ def main(infile, outdir):
     order2 = ['NAME', 'CITY', 'ALIAS', 'ARENA', 'WINS', 'LOSSES', 'FGA', 'FGM', 'FG_PCT', 'FG3A', 'FG3M', 'FG3_PCT', 'FTA', 'FTM', 'FT_PCT', 'REB', 'OREB', 'DREB', 'AST', 'BLK', 'STL', 'TOV', 'PTS', 'PTS_SUM-BENCH', 'PTS_SUM-START', 'PTS_TOTAL_DIFF', 'PTS_HALF-FIRST', 'PTS_HALF-SECOND', 'PTS_HALF_DIFF-FIRST', 'PTS_HALF_DIFF-SECOND', 'QTR1', 'QTR2', 'QTR3', 'QTR4', 'QTR-1to3', 'QTR-2to4', 'PTS_QTR_DIFF-FIRST', 'PTS_QTR_DIFF-SECOND', 'PTS_QTR_DIFF-THIRD', 'PTS_QTR_DIFF-FOURTH']
 
 
-    for game_num, game in tqdm(enumerate(data[:10])):
+    for game_num, game in tqdm(enumerate(data[:50])):
         for idx, name in game["box_score"]['PLAYER_NAME'].items():
             game["box_score"]['PLAYER_NAME'][idx] = '_'.join(name.split())
 
@@ -134,14 +134,17 @@ def main(infile, outdir):
         seen = {}
 
         f.write("<div class=\"sum\">")
-        for i, w in enumerate(game["summary"]):
-            id = "sum%d_%s"%(i,w)
-            f.write("<span id=\"%s\" onclick=\"word_select('%s')\">%s</span> " % (id, id, w))
-            if w == "\n":
-                f.write("<br>")
+        idx = 0
+        for word in game["summary"]:
+            for w in word.split('_'):
+                id = "sum%d_%s"%(idx,w)
+                f.write("<span id=\"%s\" onclick=\"word_select('%s')\">%s</span> " % (id, id, w))
+                if w == "\n":
+                    f.write("<br>")
 
-            if w.strip() == ".":
-                f.write("<br>")
+                if w.strip() == ".":
+                    f.write("<br>")
+                idx += 1
         f.write("</div>")
         f.write("<br> <center> <input type='button' value=\"skip\" onclick=\"tab_select('')\"></center><br> ")
         print_table(f, line, seen)
@@ -151,18 +154,21 @@ def main(infile, outdir):
         links = {}
         ord = {}
         last = [""]
-        for i, w in enumerate(game["summary"]):
-            id = "sum%d_%s"%(i,w)
-            matches = seen.get(w, [])
-            if len(matches) == 1:
-                links[id] = matches[0]
-            if len(matches) >= 1:
-                for l in last:
-                    ord[l] = id
-                last = []
-            if len(matches) >= 1:
-                last.append(id)
-                ambi_links[id] = matches
+        idx = 0
+        for word in game["summary"]:
+            for w in word.split('_'):
+                id = "sum%d_%s"%(idx,w)
+                matches = seen.get(w, [])
+                if len(matches) == 1:
+                    links[id] = matches[0]
+                if len(matches) >= 1:
+                    for l in last:
+                        ord[l] = id
+                    last = []
+                if len(matches) >= 1:
+                    last.append(id)
+                    ambi_links[id] = matches
+                idx += 1
         # pdb.set_trace()
 
         f.write("<br> <center><textarea cols=200 rows=10 editable=0 id=\"show\"></textarea></center>")
@@ -178,4 +184,5 @@ if __name__ == '__main__':
     parser.add_argument('--out', type=str, required=True,
                         help='output directory to save the htmls')
     args = parser.parse_args()
+    os.makedirs(args.out, exist_ok=True)
     main(args.src, args.out)

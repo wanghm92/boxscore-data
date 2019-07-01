@@ -184,6 +184,8 @@ def _retrieve_record(value, num2rcds, priority):
 def retrieve_record(value, num2rcds, priority):
     """  legacy wrapper from outline extraction script  """
     candidate, check = _retrieve_record(value, num2rcds, priority)
+    if len(priority) == 1 and not check:
+        candidate = None
     return candidate, value
 
 
@@ -832,12 +834,12 @@ def main(args):
             for x in otl_numonly:
                 otl_numonly_tks.extend(x.split(DELIM)[0:3])
                 otl_numonly_tks.append(";")
-            otl_numonly_tks[-1] = '.'
+            otl_numonly_tks.append('.')
             paragraph_plan_numonly_tks = []
             for x in paragraph_plan_numonly:
                 paragraph_plan_numonly_tks.extend(x.split(DELIM)[0:3])
                 paragraph_plan_numonly_tks.append(";")
-            paragraph_plan_numonly_tks[-1] = '.'
+            paragraph_plan_numonly_tks.append('.')
 
             out_tks = "Gold Summary .".split() + ["\n"]\
                       + original_summary + ["\n"] \
