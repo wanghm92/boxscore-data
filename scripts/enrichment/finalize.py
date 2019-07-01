@@ -13,9 +13,6 @@ knowledge_container = Domain_Knowledge()
 prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
 assert len(prefix.split()) == 4
 
-
-
-
 def main(args, DATASET):
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
 

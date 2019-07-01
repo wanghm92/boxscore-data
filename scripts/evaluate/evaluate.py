@@ -1,5 +1,5 @@
 from __future__ import division
-import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil
+import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil, jsonlines
 from tqdm import tqdm
 from pprint import pprint
 from collections import Counter, OrderedDict
@@ -602,36 +602,42 @@ def main(args):
     input_files = [
         "src_%s.norm.trim.ncp.txt" % args.dataset,
         "%s_content_plan_tks.txt" % args.dataset,
+        "%s.trim.json" % args.dataset,
+
     ]
 
     BASE_DIR = os.path.join(args.path, "{}".format(args.dataset))
-    gold_src, gold_plan = [os.path.join(BASE_DIR, f) for f in input_files]
+    gold_src, gold_plan, gold_tables = [os.path.join(BASE_DIR, f) for f in input_files]
 
     cp_out_hypo = "{}.cp.hypo".format(args.hypo)
     cp_out_gold = "{}.cp.gold".format(args.hypo)
+    js_hypo = "{}.jsonl".format(args.hypo)
 
     with io.open(gold_src, 'r', encoding='utf-8') as fin_src, \
             io.open(gold_plan, 'r', encoding='utf-8') as fin_cp, \
             io.open(args.hypo, 'r', encoding='utf-8') as fin_test, \
+            io.open(gold_tables, 'r', encoding='utf-8') as fin_table, \
             io.open(cp_out_hypo, 'w+', encoding='utf-8') as fout_cp_hypo, \
-            io.open(cp_out_gold, 'w+', encoding='utf-8') as fout_cp_gold:
+            io.open(cp_out_gold, 'w+', encoding='utf-8') as fout_cp_gold, \
+            jsonlines.open(js_hypo, 'w') as writer:
 
         inputs = fin_src.read().strip().split('\n')
         gold_outlines = fin_cp.read().strip().split('\n')
         hypotheses = fin_test.read().strip().split('\n')
-
+        original_tables = json.load(fin_table)
         peaking = inputs[0]
         add_on = 0
         if peaking.startswith(ncp_prefix):
             add_on = 4
 
-        if not len(inputs) == len(gold_outlines) == len(hypotheses):
-            print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {}"
-                  .format(len(inputs), len(gold_outlines), len(hypotheses)))
+        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables):
+            print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {} # Tables = {}"
+                  .format(len(inputs), len(gold_outlines), len(hypotheses), len(original_tables)))
             raise RuntimeError("Inputs must have the same number of samples (1/line, aligned)")
 
+        # out_tables = []
         hypo_outlines = []
-        for idx, (inp, hypo) in tqdm(enumerate(zip(inputs, hypotheses))):
+        for idx, (inp, hypo, tbl) in tqdm(enumerate(zip(inputs, hypotheses, original_tables))):
             city2team = {}
             assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS + add_on
 
@@ -817,12 +823,37 @@ def main(args):
                     paragraph_plan_numonly.extend(sentence_plan_numonly)
 
             hypo_outlines.append(paragraph_plan_numonly)
-            fout_cp_hypo.write("{}\n".format(paragraph_plan_numonly))
+            fout_cp_hypo.write("{}\n".format(' '.join(paragraph_plan_numonly)))
             otl_numonly = [x for x in gold_outlines[idx].strip().split() if x.split(DELIM)[0].isdigit()]
-            fout_cp_gold.write("{}\n".format(otl_numonly))
+            fout_cp_gold.write("{}\n".format(' '.join(otl_numonly)))
+
+            original_summary = tbl['summary']
+            otl_numonly_tks = []
+            for x in otl_numonly:
+                otl_numonly_tks.extend(x.split(DELIM)[0:3])
+                otl_numonly_tks.append(";")
+            otl_numonly_tks[-1] = '.'
+            paragraph_plan_numonly_tks = []
+            for x in paragraph_plan_numonly:
+                paragraph_plan_numonly_tks.extend(x.split(DELIM)[0:3])
+                paragraph_plan_numonly_tks.append(";")
+            paragraph_plan_numonly_tks[-1] = '.'
+
+            out_tks = "Gold Summary .".split() + ["\n"]\
+                      + original_summary + ["\n"] \
+                      + otl_numonly_tks + ["\n"] \
+                      + "System Summary .".split() + ["\n"] \
+                      + hypo.strip().split() + ["\n"] \
+                      + paragraph_plan_numonly_tks
+            tbl['summary'] = out_tks
+
+            # out_tables.append(tbl)
+            writer.write(tbl)
 
         # ------ non-BLEU metrics ------ #
         compute_rg_cs_co(gold_outlines, hypo_outlines, inputs)
+        # print(len(out_tables))
+        # json.dump(out_tables, fout_table)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')

@@ -1,4 +1,5 @@
-import json, pandas, argparse, os
+import json, pandas, argparse, os, pdb, io, copy, jsonlines
+from tqdm import tqdm
 
 def print_table(f, table, seen):
     f.write("<table border=1 class=\"table table-hover table-striped table-bordered\">")
@@ -19,14 +20,26 @@ def print_table(f, table, seen):
 
 
 def main(infile, outdir):
-    data = json.load(infile)
+    # with io.open(infile, 'r', encoding='utf-8') as fin:
+    #     data = json.load(fin)
 
-    order = ["FIRST_NAME", "SECOND_NAME", "H/V", 'POS', 'MIN', 'PTS', 'REB', 'AST', 'BLK', 'TO', 'PF', 'STL', 'DREB', 'OREB', 'FGM',  'FGA', 'FG_PCT', 'FTM',   'FTA','FT_PCT','FG3M', 'FG3A','FG3_PCT']
-    order2 = ["NAME", "CITY", "WINS", "LOSSES", "PTS", "QTR1", "QTR2", "QTR3", "QTR4", "AST", "REB", "TOV", "FG_PCT", "FT_PCT", "FG3_PCT"]
+    data = []
+    with jsonlines.open(infile, 'r') as fin:
+        for x in fin.iter(type=dict):
+            data.append(x)
 
-    for game_num, game in enumerate(data):
-        cols = {k: k.split("-")[1] if not k[-1].isdigit()
-                else k.split("_")[-1] for k in game["vis_line"]}
+
+    order = ["FIRST_NAME", "SECOND_NAME", "H/V", 'POS', 'MIN', 'PTS', 'REB', 'AST', 'BLK', 'TO', 'PF', 'STL', 'DREB', 'OREB', 'FGM',  'FGA', 'FG_PCT', 'FTM', 'FTA','FT_PCT','FG3M', 'FG3A','FG3_PCT']
+    # order2 = ["NAME", "CITY", "WINS", "LOSSES", "PTS", "QTR1", "QTR2", "QTR3", "QTR4", "AST", "REB", "TOV", "FG_PCT", "FT_PCT", "FG3_PCT"]
+    order2 = ['NAME', 'CITY', 'ALIAS', 'ARENA', 'WINS', 'LOSSES', 'FGA', 'FGM', 'FG_PCT', 'FG3A', 'FG3M', 'FG3_PCT', 'FTA', 'FTM', 'FT_PCT', 'REB', 'OREB', 'DREB', 'AST', 'BLK', 'STL', 'TOV', 'PTS', 'PTS_SUM-BENCH', 'PTS_SUM-START', 'PTS_TOTAL_DIFF', 'PTS_HALF-FIRST', 'PTS_HALF-SECOND', 'PTS_HALF_DIFF-FIRST', 'PTS_HALF_DIFF-SECOND', 'QTR1', 'QTR2', 'QTR3', 'QTR4', 'QTR-1to3', 'QTR-2to4', 'PTS_QTR_DIFF-FIRST', 'PTS_QTR_DIFF-SECOND', 'PTS_QTR_DIFF-THIRD', 'PTS_QTR_DIFF-FOURTH']
+
+
+    for game_num, game in tqdm(enumerate(data[:10])):
+        for idx, name in game["box_score"]['PLAYER_NAME'].items():
+            game["box_score"]['PLAYER_NAME'][idx] = '_'.join(name.split())
+
+        # line-score rcd_types
+        cols = {k: k.split("TEAM-")[1] if not k[-1].isdigit() else k.split("_")[-1] for k in game["vis_line"]}
 
         stats = pandas.DataFrame(game["box_score"]).set_index("PLAYER_NAME")
         # game["home_line"]["NAME"] = game["home_name"]
@@ -43,10 +56,9 @@ def main(infile, outdir):
         stats = stats.applymap(lambda a: int(a) if a[0].isdigit() else a)
         stats = stats.sort_values(by=["PTS", "REB"], ascending=False)
         line= line.transpose().rename(columns =cols)
-        # del line["NAME"]
         line = line[order2]
+        line = line.applymap(lambda a: "" if a == "N/A" else a)
         stats = stats.applymap(lambda a: "" if a == "N/A" else a)
-
         f = open(os.path.join(outdir, "game"+str(game_num)+".html"), "w")
         f.write("""<head>
 <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet"
@@ -125,8 +137,11 @@ def main(infile, outdir):
         for i, w in enumerate(game["summary"]):
             id = "sum%d_%s"%(i,w)
             f.write("<span id=\"%s\" onclick=\"word_select('%s')\">%s</span> " % (id, id, w))
-            # if w.strip() == ".":
-            #     f.write("<br>")
+            if w == "\n":
+                f.write("<br>")
+
+            if w.strip() == ".":
+                f.write("<br>")
         f.write("</div>")
         f.write("<br> <center> <input type='button' value=\"skip\" onclick=\"tab_select('')\"></center><br> ")
         print_table(f, line, seen)
@@ -148,6 +163,7 @@ def main(infile, outdir):
             if len(matches) >= 1:
                 last.append(id)
                 ambi_links[id] = matches
+        # pdb.set_trace()
 
         f.write("<br> <center><textarea cols=200 rows=10 editable=0 id=\"show\"></textarea></center>")
         f.write("\n<script>init(%s, %s, %s)</script>"%(json.dumps(links), json.dumps(ambi_links), json.dumps(ord)))

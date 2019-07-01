@@ -719,6 +719,7 @@ def main(args, DATASET):
                         table['Teams'][field].append(rcd)
                     if rcd_type == 'TEAM-CITY':
                         city2team[value] = field
+                    # this diff is incorporated the last, no apparent pattern found, so rely on single digit matching
                     if 'DIFF' in rcd_type:
                         if not value in single_number2rcds:
                             single_number2rcds[value] = [rcd]
