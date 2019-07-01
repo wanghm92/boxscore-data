@@ -15,6 +15,7 @@ PAD_WORD = '<blank>'
 UNK_WORD = '<unk>'
 BOS_WORD = '<s>'
 EOS_WORD = '</s>'
+ncp_prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
 
 # ------------------------------- #
 # --- very important patterns --- #
@@ -115,6 +116,7 @@ def mark_records(sent):
         delim = "#DELIM{}#".format(i)
         i += 1
         suffix = f.split()[-1]
+        # avoid sticking with pattern 6 items
         if not suffix.startswith('#'):
             rep = "{}{}{}".format(delim, delim.join(f.split()), delim)
             x = x.replace(f, rep)
@@ -135,7 +137,9 @@ def mark_records(sent):
 # ------------------------------- #
 
 def _retrieve_record(value, num2rcds, priority):
+    """  get the record with the matching value, and desired record type  """
     candidates = num2rcds.get(value, None)
+    # nothing found, return
     if candidates is None:
         if len(priority) > 1:
             return [], False
@@ -144,6 +148,7 @@ def _retrieve_record(value, num2rcds, priority):
 
     candidates = sorted(candidates, key=lambda x: len(x.split(DELIM)[2]))
     assert len(priority) > 0
+    # found one, check if it's of the desired type
     if len(candidates) == 1:
         check = False
         for p in priority:
@@ -155,6 +160,7 @@ def _retrieve_record(value, num2rcds, priority):
             return candidates, check
         else:
             return candidates[0], check
+    # found multiple, choose the one with the desired type
     else:
         results = []
         check = False
@@ -176,6 +182,7 @@ def _retrieve_record(value, num2rcds, priority):
 
 
 def retrieve_record(value, num2rcds, priority):
+    """  legacy wrapper from outline extraction script  """
     candidate, check = _retrieve_record(value, num2rcds, priority)
     return candidate, value
 
@@ -188,6 +195,7 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
     p = re.compile("#DELIM(\d+)#")
     temp = re.findall(p, phrase)
     pattern_num = int(temp[0])
+    # only one pattern is allowed in one mwe/phrase
     if not all([int(x) == pattern_num for x in temp]):
         pdb.set_trace()
         raise RuntimeError("{} is misformatted".format(phrase))
@@ -207,7 +215,7 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
             'FT': ['FTM', 'FTA']
         }
 
-        # fix typos
+        # fix spelling variations
         if len(suffix) == 3:
             suffix_temp = copy.deepcopy(suffix)
             if not suffix_temp[0] == 'FG':
@@ -238,7 +246,10 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
                 print("suffix = {}".format(suffix))
                 sys.exit(0)
 
+            # During original outline extraction, only retain if both are found, here we don't constrain it too much
             if cp1 is None or cp2 is None:
+                # making a guess if either is not found on the entity which this record belongs to
+                # rcd_types are already inferred
                 if cp1 is None:
                     rcd_type = 'TEAM-'+suffix2rcdtype[s][0] if p_or_t == 'TEAM' else suffix2rcdtype[s][0]
                     cp1 = DELIM.join([str(numbers[i]), entity, rcd_type, ha])
@@ -436,10 +447,7 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
                                 cp2 = y
                                 break
 
-                                # print('cp1 = {}'.format(cp1))
-                                # print('cp2 = {}'.format(cp2))
-                                # print('num2rcds = {}'.format(num2rcds))
-
+        # same thing as above, increasing recall
         if cp1 is None or cp2 is None:
             rebuild = [cp1 is None, cp2 is None]
             # construct cp for this pair
@@ -493,9 +501,9 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
 
     """
     print("Computing RG, CS, CO ...")
-    print(len(gold_outlines))
-    print(len(hypo_outlines))
-    print(len(inputs))
+    # print(len(gold_outlines))
+    # print(len(hypo_outlines))
+    # print(len(inputs))
     assert len(gold_outlines) == len(hypo_outlines) == len(inputs)
 
     total_pred = 0
@@ -542,7 +550,6 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
         "Content Selection (CS) %F1": f1,
         "Content Ordering (CO)": ndld*100,
     }
-    # pdb.set_trace()
     pprint(metrics)
 
 # -------------- #
@@ -574,6 +581,9 @@ def _any_other_player(sent):
     return False
 
 def _choose_most_likely(this_sent_records):
+    """
+        arbitrarily choosing one record
+    """
     rcd_types = set([rcd.split(DELIM)[-2] for rcd in this_sent_records])
     team_rcd_types = [x for x in rcd_types if x.startswith('TEAM')]
     p_or_t = None
@@ -610,6 +620,11 @@ def main(args):
         gold_outlines = fin_cp.read().strip().split('\n')
         hypotheses = fin_test.read().strip().split('\n')
 
+        peaking = inputs[0]
+        add_on = 0
+        if peaking.startswith(ncp_prefix):
+            add_on = 4
+
         if not len(inputs) == len(gold_outlines) == len(hypotheses):
             print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {}"
                   .format(len(inputs), len(gold_outlines), len(hypotheses)))
@@ -618,8 +633,7 @@ def main(args):
         hypo_outlines = []
         for idx, (inp, hypo) in tqdm(enumerate(zip(inputs, hypotheses))):
             city2team = {}
-            # TODO: change the hard coded 4
-            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS + 4
+            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS + add_on
 
             current_sent_players = OrderedDict()
             current_sent_teams = OrderedDict()
@@ -636,6 +650,7 @@ def main(args):
                         table['Teams'][field].append(rcd)
                     if rcd_type == 'TEAM-CITY':
                         city2team[value] = field
+                    # this diff is incorporated the last, no apparent pattern found, so rely on single digit matching
                     if 'DIFF' in rcd_type:
                         if not value in diff2rcds:
                             diff2rcds[value] = [rcd]
@@ -648,6 +663,7 @@ def main(args):
                         table['Players'][field].append(rcd)
 
             # ------ process each sentence ------ #
+            # content plan for the whole paragraph, containing number records only
             paragraph_plan_numonly = []
             sentences = hypo.strip().split(' . ')
             for cnt, sent in enumerate(sentences):
@@ -670,13 +686,14 @@ def main(args):
                             if word not in current_sent_players:
                                 current_sent_players[word] = True
                 else:
-                    # resolving pronouns
+                    # no player name found in this sentence, resolving pronouns
                     for word in sent.strip().split():
                         if word in singular_prons:
                             player_found = True
 
                     if not player_found:
                         # neither a new player is found nor a pronoun is referring to a previous player
+                        # reset the lookup as we only allow coreference resolution between adjacent sentences
                         current_sent_players = OrderedDict()
 
                 team_found = False
@@ -708,8 +725,7 @@ def main(args):
                         # neither a new team is found nor a pronoun is referring to a previous team
                         current_sent_teams = OrderedDict()
 
-                # TODO: player/team not found case: do not reset when neither team/player/pronoun is found, increase recall
-
+                # ------ now we know what this sentence is about, get the set of their input records ------ #
                 this_sent_records = []
                 for player in current_sent_players.keys():
                     player_records = table['Players'][player]
@@ -754,14 +770,14 @@ def main(args):
                 # print("[{}] current_sent_players : {} player_found : {}".format(cnt, current_sent_players, player_found))
                 # print("[{}] current_sent_teams : {} team_found : {}".format(cnt, current_sent_teams, team_found))
 
-
-                # ------ start looking for (player/team, number, rcd_type) triples ------ #
+                # make a guess for later use, in case needed
                 if len(this_sent_records) > 0:
                     entity, rcd_type, ha, p_or_t = _choose_most_likely(this_sent_records)
                 else:
                     assert not (player_found and team_found)
                     # pdb.set_trace()
 
+                # ------ start looking for (player/team, number, rcd_type) triples ------ #
                 sentence_plan_numonly = []
                 for mwe in sent.strip().split():
                     if mwe.startswith("#DELIM"):
@@ -785,14 +801,18 @@ def main(args):
                         guess = diff2rcds.get(mwe, [])
                         best_guess = None
                         if len(guess) >= 1:
+                            # search for "first, second, third, fourth" in the sentence
                             lkt = {i: True for i in sent.strip().split()}
                             ord2rcds = {v.split(DELIM)[-2].split('-')[-1].lower(): v for v in guess}
                             for k, v in ord2rcds.items():
                                 if k in lkt:
                                     best_guess = v
+                        # if a record match both the value and the ordinal number, it may be talking about a quarter diff
                         if best_guess is not None:
                             sentence_plan_numonly.append(best_guess)
 
+                # only add to the paragraph content play if this sentence is actually talking about some statistics
+                # consistent with the training set, so there is no source for a model to learn to output such sentences
                 if len(sentence_plan_numonly) > 0:
                     paragraph_plan_numonly.extend(sentence_plan_numonly)
 
@@ -801,6 +821,7 @@ def main(args):
             otl_numonly = [x for x in gold_outlines[idx].strip().split() if x.split(DELIM)[0].isdigit()]
             fout_cp_gold.write("{}\n".format(otl_numonly))
 
+        # ------ non-BLEU metrics ------ #
         compute_rg_cs_co(gold_outlines, hypo_outlines, inputs)
 
 if __name__ == "__main__":
