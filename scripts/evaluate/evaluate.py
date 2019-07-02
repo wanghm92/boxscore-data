@@ -541,14 +541,18 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
     f1 = 2*precision*recall/(precision+recall)
     ndld /= len(inputs)
 
-    metrics = {
+    metrics = OrderedDict({
+        "Correct  #": correct,
+        "true_positive  #": true_positive,
+        "total_pred  #": total_pred,
+        "total_gold  #": total_gold,
         "Relation Generation (RG) #": total_pred/len(inputs),
         "Relation Generation (RG) %Precision": rg,
         "Content Selection (CS) %Precision": precision,
         "Content Selection (CS) %Recall": recall,
         "Content Selection (CS) %F1": f1,
         "Content Ordering (CO)": ndld*100,
-    }
+    })
     pprint(metrics)
 
 # -------------- #
@@ -867,14 +871,14 @@ def main(args):
             writer.write(tbl)
 
         # ------ non-BLEU metrics ------ #
-        print(" *** Metrics ***")
+        print("\n *** Metrics ***\n")
         if planner_output is not None:
             planner_output = [[i for i in x.strip().split() if i.split(DELIM)[0].isdigit()] for x in planner_output]
-            print(" *** Planned vs Gold ***")
+            print("\n *** Planned vs Gold ***\n")
             compute_rg_cs_co(gold_outlines, planner_output, inputs)
-            print(" *** Extracted vs Planned ***")
+            print("\n *** Extracted vs Planned ***\n")
             compute_rg_cs_co(planner_output, hypo_outlines, inputs)
-        print(" *** Extracted vs Gold ***")
+        print("\n *** Extracted vs Gold ***\n")
         compute_rg_cs_co(gold_outlines, hypo_outlines, inputs)
         # print(len(out_tables))
         # json.dump(out_tables, fout_table)
