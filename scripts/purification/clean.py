@@ -293,8 +293,10 @@ p4 = re.compile("\S+,\S+")
 p5 = re.compile("\d+-\d+")
 p6 = re.compile("(\S+)(three_point)")
 p7 = re.compile("(\S+)two_point")
+full_name_cnt = 0
 
 def fix_tokenization(s):
+    global full_name_cnt
     mwe_file = "/home/hongmin_wang/table2text_nlg/harvardnlp/data2text-harvard/mwes.json"
     with io.open(mwe_file, 'r', encoding='utf-8') as fmwe:
         tmp = json.load(fmwe)
@@ -307,10 +309,11 @@ def fix_tokenization(s):
 
     for k, v in full_names.items():
         if k in s:
-            print("\n*** Original ***\n {}\n".format(s))
-            print("\n*** Uncaptured Name : {} ***".format(k))
+            full_name_cnt += 1
+            # print("\n*** Original ***\n {}\n".format(s))
+            # print("\n*** Uncaptured Name : {} ***".format(k))
             s = s.replace(k, v)
-            print("\n*** After ***\n {}\n".format(s))
+            # print("\n*** After ***\n {}\n".format(s))
 
     for w in s.split():
         if w.endswith("s’"):
@@ -472,13 +475,13 @@ def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe):
         print(len(targets))
 
         targets_cleaned = []
-        for i, t in zip(inputs, targets):
+        for i, t in tqdm(zip(inputs, targets)):
             player_names = get_player_name_one(i)
             t = collate_team_city_names(t, player_names)
             targets_cleaned.append(t)
 
         all_num_dataset = []
-        for sent in targets_cleaned:
+        for sent in tqdm(targets_cleaned):
             all_num_tks = []
             tokens = sent.split()
             for idx, t in enumerate(tokens):
@@ -502,6 +505,7 @@ def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe):
         for s in all_num_dataset:
             vocab.extend(s.split())
         print("cleaned vocab = {}".format(len(Counter(vocab).most_common())))
+        print("*** full_name_cnt = {}".format(full_name_cnt))
 
 
 if __name__ == "__main__":
@@ -510,7 +514,7 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for dataset in ['valid']: #['train', 'valid', 'test']:
+    for dataset in ['train']: #['train', 'valid', 'test']:
         print("dataset: {}".format(dataset))
         input_files = [
             "{}/src_{}.txt".format(dataset, dataset),
