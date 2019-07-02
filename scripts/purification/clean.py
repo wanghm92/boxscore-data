@@ -3,12 +3,10 @@ This cleaning script does the following:
 (1)
 """
 
-import re, io, copy, os, sys, argparse
+import re, io, copy, os, sys, argparse, json
 from tqdm import tqdm
 from collections import Counter, OrderedDict
-from pprint import pprint
 from text2num import text2num
-from domain_knowledge import Domain_Knowledge
 
 LOWER = False
 DELIM = "￨"
@@ -260,6 +258,8 @@ post_fixes = {
     'Lebron LeBron_James': 'LeBron_James',
     'sideline..': ' sideline .',
     'Trail_Trail_Blazers': 'Trail_Blazers',
+    'TrailTrail_Blazers': 'Trail_Blazers',
+    'DeAndreDeAndre_Jordan': 'DeAndre_Jordan',
     'Kevin Durant': 'Kevin_Durant',
     'a rebound': '1 rebound',
     'an assist': '1 assist',
@@ -281,7 +281,9 @@ post_fixes = {
     ' p.m. ': ' PM ',
     ' O.T. ': ' OT ',
     'KJ McTroy_Daniels': 'KJ_McDaniels',
-    ' 4 - of - 7 7 ': ' 4 - of - 7 '
+    ' 4 - of - 7 7 ': ' 4 - of - 7 ',
+    'JJ Reduce': 'JJ_Redick',
+
 }
 
 p1 = re.compile("\d+\.\S+|\S+\.\d+")
@@ -293,9 +295,23 @@ p6 = re.compile("(\S+)(three_point)")
 p7 = re.compile("(\S+)two_point")
 
 def fix_tokenization(s):
+    mwe_file = "/home/hongmin_wang/table2text_nlg/harvardnlp/data2text-harvard/mwes.json"
+    with io.open(mwe_file, 'r', encoding='utf-8') as fmwe:
+        tmp = json.load(fmwe)
+        mwes = {k:v for k,v in tmp.items() if v>1}
+    full_names = {' '.join(k.split('_')):k for k, _ in mwes.items()}
+
     clean = []
     #     print(s.split())
     #     print(len(s.split()))
+
+    for k, v in full_names.items():
+        if k in s:
+            print("\n*** Original ***\n {}\n".format(s))
+            print("\n*** Uncaptured Name : {} ***".format(k))
+            s = s.replace(k, v)
+            print("\n*** After ***\n {}\n".format(s))
+
     for w in s.split():
         if w.endswith("s’"):
             w = ' '.join([w[:-1], "'"])
@@ -494,7 +510,7 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for dataset in ['train', 'valid', 'test']:
+    for dataset in ['valid']: #['train', 'valid', 'test']:
         print("dataset: {}".format(dataset))
         input_files = [
             "{}/src_{}.txt".format(dataset, dataset),
