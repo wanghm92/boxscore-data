@@ -502,10 +502,6 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
         CO : normalized Damerau-Levenshtein Distance between identified records against outlines extracted from human-written summaries
 
     """
-    print("Computing RG, CS, CO ...")
-    # print(len(gold_outlines))
-    # print(len(hypo_outlines))
-    # print(len(inputs))
     assert len(gold_outlines) == len(hypo_outlines) == len(inputs)
 
     total_pred = 0
@@ -514,8 +510,11 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
     true_positive = 0
     ndld = 0.0
 
+    if not isinstance(gold_outlines[0], list):
+        tmp = [[i for i in x.strip().split() if i.split(DELIM)[0].isdigit()] for x in gold_outlines]
+        gold_outlines = tmp
+
     for ref, hypo, inp in tqdm(zip(gold_outlines, hypo_outlines, inputs)):
-        ref = [x for x in ref.strip().split() if x.split(DELIM)[0].isdigit()]
         input_lookup = dict.fromkeys(inp.strip().split(), True)
 
         ref = dedup_list(ref)
@@ -600,7 +599,14 @@ def _choose_most_likely(this_sent_records):
 
     return entity, rcd_type, ha, p_or_t
 
+
 def main(args):
+
+    planner_output = None
+    if args.plan is not None:
+        with io.open(args.plan, 'r', encoding='utf-8') as fin:
+            planner_output = fin.read().strip().split('\n')
+
     input_files = [
         "src_%s.norm.trim.ncp.txt" % args.dataset,
         "%s_content_plan_tks.txt" % args.dataset,
@@ -632,7 +638,7 @@ def main(args):
         if peaking.startswith(ncp_prefix):
             add_on = 4
 
-        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables):
+        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables) == len(planner_output):
             print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {} # Tables = {}"
                   .format(len(inputs), len(gold_outlines), len(hypotheses), len(original_tables)))
             raise RuntimeError("Inputs must have the same number of samples (1/line, aligned)")
@@ -840,12 +846,22 @@ def main(args):
                 paragraph_plan_numonly_tks.extend(x.split(DELIM)[0:3])
                 paragraph_plan_numonly_tks.append(";")
             paragraph_plan_numonly_tks.append('.')
+            stage1 = []
+            if planner_output is not None:
+                for x in planner_output[idx].strip().split():
+                    if x.split(DELIM)[0].isdigit():
+                        stage1.extend(x.split(DELIM)[0:3])
+                        stage1.append(";")
+                stage1.append('.')
 
-            out_tks = "Gold Summary .".split() + ["\n"]\
+            out_tks = "Gold Summary .".split() + ["\n"] \
                       + original_summary + ["\n"] \
                       + otl_numonly_tks + ["\n"] \
                       + "System Summary .".split() + ["\n"] \
                       + hypo.strip().split() + ["\n"] \
+                      + "Planned Outline .".split() + ["\n"] \
+                      + stage1 + ["\n\n"] \
+                      + "Extracted Outline .".split() + ["\n"] \
                       + paragraph_plan_numonly_tks
             tbl['summary'] = out_tks
 
@@ -853,6 +869,14 @@ def main(args):
             writer.write(tbl)
 
         # ------ non-BLEU metrics ------ #
+        print(" *** Metrics ***")
+        if planner_output is not None:
+            planner_output = [x.strip().split() for x in planner_output]
+            print(" *** Planned vs Gold ***")
+            compute_rg_cs_co(gold_outlines, planner_output, inputs)
+            print(" *** Extracted vs Planned ***")
+            compute_rg_cs_co(planner_output, hypo_outlines, inputs)
+        print(" *** Extracted vs Gold ***")
         compute_rg_cs_co(gold_outlines, hypo_outlines, inputs)
         # print(len(out_tables))
         # json.dump(out_tables, fout_table)
@@ -864,7 +888,8 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='valid', choices=['valid', 'test'])
     parser.add_argument('--hypo', type=str, required=True,
                         help='directory of src/tgt_train/valid/test.txt files')
-
+    parser.add_argument('--plan', type=str, default=None,
+                        help='content plan by ncpcc stage 1')
     args = parser.parse_args()
 
     print("Evaluating {} set".format(args.dataset))

@@ -146,6 +146,7 @@ def main(infile, outdir):
                     f.write("<br>")
                 idx += 1
         f.write("</div>")
+        # f.write("<select name=\"carlist\" form=\"carform\"> <option value=\"volvo\">Volvo</option> <option value=\"saab\">Saab</option> <option value=\"opel\">Opel</option> <option value=\"audi\">Audi</option </select>")
         f.write("<br> <center> <input type='button' value=\"skip\" onclick=\"tab_select('')\"></center><br> ")
         print_table(f, line, seen)
         print_table(f, stats, seen)
