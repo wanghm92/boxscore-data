@@ -509,10 +509,8 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
     correct = 0
     true_positive = 0
     ndld = 0.0
-
     if not isinstance(gold_outlines[0], list):
-        tmp = [[i for i in x.strip().split() if i.split(DELIM)[0].isdigit()] for x in gold_outlines]
-        gold_outlines = tmp
+        gold_outlines = [[i for i in x.strip().split() if i.split(DELIM)[0].isdigit()] for x in gold_outlines]
 
     for ref, hypo, inp in tqdm(zip(gold_outlines, hypo_outlines, inputs)):
         input_lookup = dict.fromkeys(inp.strip().split(), True)
@@ -871,7 +869,7 @@ def main(args):
         # ------ non-BLEU metrics ------ #
         print(" *** Metrics ***")
         if planner_output is not None:
-            planner_output = [x.strip().split() for x in planner_output]
+            planner_output = [[i for i in x.strip().split() if i.split(DELIM)[0].isdigit()] for x in planner_output]
             print(" *** Planned vs Gold ***")
             compute_rg_cs_co(gold_outlines, planner_output, inputs)
             print(" *** Extracted vs Planned ***")
