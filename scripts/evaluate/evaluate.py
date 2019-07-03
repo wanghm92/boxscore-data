@@ -640,11 +640,13 @@ def main(args):
         if peaking.startswith(ncp_prefix):
             add_on = 4
 
-        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables) == len(planner_output):
+        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables):
             print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {} # Tables = {}"
                   .format(len(inputs), len(gold_outlines), len(hypotheses), len(original_tables)))
             raise RuntimeError("Inputs must have the same number of samples (1/line, aligned)")
-
+        else:
+            if planner_output is not None:
+                assert len(inputs) == len(planner_output)
         # out_tables = []
         hypo_outlines = []
         for idx, (inp, hypo, tbl) in tqdm(enumerate(zip(inputs, hypotheses, original_tables))):
@@ -789,9 +791,6 @@ def main(args):
                 # make a guess for later use, in case needed
                 if len(this_sent_records) > 0:
                     entity, rcd_type, ha, p_or_t = _choose_most_likely(this_sent_records)
-                else:
-                    assert not (player_found and team_found)
-                    # pdb.set_trace()
 
                 # ------ start looking for (player/team, number, rcd_type) triples ------ #
                 sentence_plan_numonly = []

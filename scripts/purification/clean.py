@@ -304,8 +304,6 @@ def fix_tokenization(s):
     full_names = {' '.join(k.split('_')):k for k, _ in mwes.items()}
 
     clean = []
-    #     print(s.split())
-    #     print(len(s.split()))
 
     for k, v in full_names.items():
         if k in s:
@@ -514,7 +512,7 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for dataset in ['train']: #['train', 'valid', 'test']:
+    for dataset in ['train', 'valid', 'test']:
         print("dataset: {}".format(dataset))
         input_files = [
             "{}/src_{}.txt".format(dataset, dataset),

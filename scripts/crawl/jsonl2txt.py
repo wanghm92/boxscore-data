@@ -3,9 +3,9 @@ import codecs, json, sys, io, os, copy, argparse, jsonlines
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--input', type=str, required=True, default='../new_dataset/new_jsonl',
+parser.add_argument('--input', type=str, default='../new_dataset/new_jsonl',
                     help='path to train/valid/test.jsonl files')
-parser.add_argument('--output', type=str, required=True, default='../new_dataset/new_clean',
+parser.add_argument('--output', type=str, default='../new_dataset/new_clean',
                     help='path to txt format files')
 args = parser.parse_args()
 
