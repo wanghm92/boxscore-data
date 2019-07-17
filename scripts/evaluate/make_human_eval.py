@@ -1,5 +1,5 @@
 from __future__ import division
-import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil, jsonlines
+import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil, jsonlines, random
 from tqdm import tqdm
 from pprint import pprint
 from collections import Counter, OrderedDict
@@ -605,9 +605,9 @@ def _choose_most_likely(this_sent_records):
 def main(args):
 
     planner_output = None
-    if args.plan is not None:
-        with io.open(args.plan, 'r', encoding='utf-8') as fin:
-            planner_output = fin.read().strip().split('\n')
+    # if args.plan is not None:
+    #     with io.open(args.plan, 'r', encoding='utf-8') as fin:
+    #         planner_output = fin.read().strip().split('\n')
 
     input_files = [
         "src_%s.norm.trim.ncp.txt" % args.dataset,
@@ -621,35 +621,47 @@ def main(args):
 
     cp_out_hypo = "{}.cp.hypo".format(args.hypo)
     cp_out_gold = "{}.cp.gold".format(args.hypo)
-    js_hypo = "{}.jsonl".format(args.hypo)
+    js_hypo = "{}.shuffle.jsonl".format(args.hypo)
+    mapping = "{}.sys2mask.jsonl".format(args.hypo)
 
     with io.open(gold_src, 'r', encoding='utf-8') as fin_src, \
             io.open(gold_plan, 'r', encoding='utf-8') as fin_cp, \
             io.open(args.hypo, 'r', encoding='utf-8') as fin_test, \
+            io.open(args.template, 'r', encoding='utf-8') as fin_template, \
+            io.open(args.ws17, 'r', encoding='utf-8') as fin_ws17, \
+            io.open(args.ent, 'r', encoding='utf-8') as fin_ent, \
+            io.open(args.ncp, 'r', encoding='utf-8') as fin_ncp, \
             io.open(gold_tables, 'r', encoding='utf-8') as fin_table, \
             io.open(cp_out_hypo, 'w+', encoding='utf-8') as fout_cp_hypo, \
             io.open(cp_out_gold, 'w+', encoding='utf-8') as fout_cp_gold, \
-            jsonlines.open(js_hypo, 'w') as writer:
+            jsonlines.open(mapping, 'w') as map_writer, \
+            jsonlines.open(js_hypo, 'w') as tbl_writer:
 
         inputs = fin_src.read().strip().split('\n')
         gold_outlines = fin_cp.read().strip().split('\n')
         hypotheses = fin_test.read().strip().split('\n')
+        templates = fin_template.read().strip().split('\n')
+        ws17 = fin_ws17.read().strip().split('\n')
+        ent = fin_ent.read().strip().split('\n')
+        ncp = fin_ncp.read().strip().split('\n')
         original_tables = json.load(fin_table)
         peaking = inputs[0]
         add_on = 0
         if peaking.startswith(ncp_prefix):
             add_on = 4
 
-        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables):
+        if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(templates) == len(ws17) == len(ent) == len(ncp) == len(original_tables):
             print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {} # Tables = {}"
                   .format(len(inputs), len(gold_outlines), len(hypotheses), len(original_tables)))
             raise RuntimeError("Inputs must have the same number of samples (1/line, aligned)")
         else:
             if planner_output is not None:
                 assert len(inputs) == len(planner_output)
-        # out_tables = []
         hypo_outlines = []
-        for idx, (inp, hypo, tbl) in tqdm(enumerate(zip(inputs, hypotheses, original_tables))):
+        for idx, (inp, hypo, sum_t, sum_w, sum_e, sum_n, tbl) in tqdm(enumerate(zip(inputs, hypotheses, templates, ws17, ent, ncp, original_tables))):
+            # print(hypo)
+            # if idx > 30:
+            #     break
             city2team = {}
             assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS + add_on
 
@@ -855,19 +867,46 @@ def main(args):
                         stage1.append(";")
                 stage1.append('.')
 
-            out_tks = "Gold Summary .".split() + ["\n"] \
-                      + original_summary + ["\n"] \
-                      + otl_numonly_tks + ["\n"] \
-                      + "System Summary .".split() + ["\n"] \
-                      + hypo.strip().split() + ["\n"] \
-                      + "Planned Outline .".split() + ["\n"] \
-                      + stage1 + ["\n\n"] \
-                      + "Extracted Outline .".split() + ["\n"] \
-                      + paragraph_plan_numonly_tks
-            tbl['summary'] = out_tks
+            indices = list(range(6))
+            random.shuffle(indices)
+            namelist = ['gold', 'template', 'ws17', 'ent', 'ncp', 'ours']
 
-            # out_tables.append(tbl)
-            writer.write(tbl)
+            sys2sum = {
+                'gold': original_summary,
+                'template': sum_t.strip().split(),
+                'ws17': sum_w.strip().split(),
+                'ent': sum_e.strip().split(),
+                'ncp': sum_n.strip().split(),
+                'ours': hypo.strip().split(),
+            }
+
+            mask2sys = OrderedDict({
+                'article-1': namelist[indices[0]],
+                'article-2': namelist[indices[1]],
+                'article-3': namelist[indices[2]],
+                'article-4': namelist[indices[3]],
+                'article-5': namelist[indices[4]],
+                'article-6': namelist[indices[5]],
+            })
+
+            map_writer.write(mask2sys)
+
+            out_tks = []
+            for k, v in mask2sys.items():
+                out_tks.extend("{} .".format(k).split())
+                out_tks.append("\n")
+                out_tks.extend(sys2sum[v])
+                out_tks.append("\n")
+
+            tbl['summary'] = out_tks
+            # # pdb.set_trace()
+            # tbl['home_line']['TEAM-dummy'] = 'dummy'
+            # tbl['vis_line']['TEAM-dummy'] = 'dummy'
+            # number = len(tbl['box_score']['TEAM_CITY'])
+            # dummy = {str(k):v for k, v in zip(list(range(number)), ['dummy' for _ in range(number)])}
+            # tbl['box_score']['dummy'] = dummy
+            # # pdb.set_trace()
+            tbl_writer.write(tbl)
 
         # ------ non-BLEU metrics ------ #
         print("\n *** Metrics ***\n")
@@ -889,8 +928,10 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default='valid', choices=['valid', 'test'])
     parser.add_argument('--hypo', type=str, required=True,
                         help='directory of src/tgt_train/valid/test.txt files')
-    parser.add_argument('--plan', type=str, default=None,
-                        help='content plan by ncpcc stage 1')
+    parser.add_argument('--template', type=str, required=True)
+    parser.add_argument('--ws17', type=str, required=True)
+    parser.add_argument('--ent', type=str, required=True)
+    parser.add_argument('--ncp', type=str, required=True)
     args = parser.parse_args()
 
     print("Evaluating {} set".format(args.dataset))
