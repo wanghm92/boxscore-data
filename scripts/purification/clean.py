@@ -238,7 +238,7 @@ def get_player_name_one(sample):
 # --- fix tokenization errors --- #
 # ------------------------------- #
 
-post_fixes = {
+post_fixes = OrderedDict({
     ' - -': ' ,',
     'Jan.': 'Jan',
     'Feb.': 'Feb',
@@ -283,8 +283,10 @@ post_fixes = {
     'KJ McTroy_Daniels': 'KJ_McDaniels',
     ' 4 - of - 7 7 ': ' 4 - of - 7 ',
     'JJ Reduce': 'JJ_Redick',
-
-}
+    '...': '.',
+    '..': ' .',
+    'Manu Ginobli': 'Manu_Ginobili',
+})
 
 p1 = re.compile("\d+\.\S+|\S+\.\d+")
 p2 = re.compile("([0-9]+)(F\S)")

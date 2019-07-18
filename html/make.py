@@ -34,7 +34,7 @@ def main(infile, outdir):
     order2 = ['NAME', 'CITY', 'ALIAS', 'ARENA', 'WINS', 'LOSSES', 'FGA', 'FGM', 'FG_PCT', 'FG3A', 'FG3M', 'FG3_PCT', 'FTA', 'FTM', 'FT_PCT', 'REB', 'OREB', 'DREB', 'AST', 'BLK', 'STL', 'TOV', 'PTS', 'PTS_SUM-BENCH', 'PTS_SUM-START', 'PTS_TOTAL_DIFF', 'PTS_HALF-FIRST', 'PTS_HALF-SECOND', 'PTS_HALF_DIFF-FIRST', 'PTS_HALF_DIFF-SECOND', 'QTR1', 'QTR2', 'QTR3', 'QTR4', 'QTR-1to3', 'QTR-2to4', 'PTS_QTR_DIFF-FIRST', 'PTS_QTR_DIFF-SECOND', 'PTS_QTR_DIFF-THIRD', 'PTS_QTR_DIFF-FOURTH']
 
 
-    for game_num, game in tqdm(enumerate(data[:50])):
+    for game_num, game in tqdm(enumerate(data[:30])):
         for idx, name in game["box_score"]['PLAYER_NAME'].items():
             game["box_score"]['PLAYER_NAME'][idx] = '_'.join(name.split())
 
