@@ -77,6 +77,7 @@ mwes = {
     "Eastern Conference": "Eastern_Conference",
     "Western Conference": "Western_Conference",
     "NBA Finals": "NBA_Finals",
+    "runner - up": 'runner_up'
 }
 
 mwes_dash = {

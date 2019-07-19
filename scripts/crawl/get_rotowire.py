@@ -13,7 +13,7 @@ from nba_api.stats.endpoints import BoxScoreTraditionalV2, BoxScoreSummaryV2
 # gamefinder = leaguegamefinder.LeagueGameFinder()
 # all_nba_games = gamefinder.get_data_frames()[0]
 print("loading all nba games ...")
-all_games = pd.read_pickle("/mnt/bhd/hongmin/nba_data/all_games.pkl")
+all_games = pd.read_pickle("/mnt/bhd/hongmin/nba/crawl/all_games.pkl")
 
 pattern = re.compile('([\S\s]+) at ([\S\s]+)')
 months2num = {"January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6, "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12}
