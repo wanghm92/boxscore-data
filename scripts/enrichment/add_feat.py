@@ -1,13 +1,14 @@
-import re, io, copy, os, sys, argparse, json, pdb, jsonlines
+import re, io, copy, os, sys, argparse, json, pdb, jsonlines, datetime, calendar
 from tqdm import tqdm
 from collections import Counter
 from pprint import pprint
+import pandas as pd
 sys.path.insert(0, '../purification/')
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 DELIM = "￨"
 LOWER = False
-
+all_games = pd.read_pickle("/mnt/bhd/hongmin/nba/crawl/all_games.pkl")
 
 # ---------------------- #
 # --- add game arena --- #
@@ -405,6 +406,52 @@ def player_features(records, add_dd=False):
 '''
 
 
+def _search_game(gameday, team):
+    today = gameday
+    for i in range(5):
+        today += datetime.timedelta(days=1)
+        month, day, year = today.month, today.day, today.year
+        datestr = "20%02d-%02d-%02d" % (year, month, day)
+        tmp = all_games[(all_games.GAME_DATE == datestr) & (all_games.TEAM_NAME.isin([team]))]
+        if not tmp.empty:
+            game_id = tmp.GAME_ID.values[0]
+            next = all_games[(all_games.GAME_ID == game_id) & (~all_games.TEAM_NAME.isin([team]))]
+            next = next.TEAM_NAME.values[0]
+            day_of_week = calendar.day_name[today.weekday()]
+            if 'Trail Blazers' in next:
+                next_team = 'Trail Blazers'
+                next_city = next.replace('Trail Blazers', '').strip()
+            else:
+                next_team = next.split()[-1].strip()
+                next_city = ' '.join(next.split()[:-1]).strip()
+
+            return next_team, next_city, day_of_week
+
+    return 'N/A', 'N/A', 'N/A'
+
+no_next = {'home':0, 'away':0}
+no_next_summaries = []
+def get_next_games(tbl, records):
+    global no_next
+    month, day, year = tbl['day'].split('_')
+    gameday = datetime.date(int(year), int(month), int(day))
+    home = "{} {}".format(tbl['home_city'], tbl['home_name'])
+    away = "{} {}".format(tbl['vis_city'], tbl['vis_name'])
+
+    for team, prefix in zip([home, away], ['home', 'away']):
+        name, city, day = _search_game(gameday, team)
+        if name == 'N/A':
+            no_next[prefix] += 1
+            no_next_summaries.append(' '.join(tbl['summary']))
+        for x, y in zip([name, city, day], ['NAME', 'CITY', 'DAY']):
+            records.append(DELIM.join([x,
+                                       tbl['{}_name'.format('vis' if prefix == 'away' else 'home')],
+                                       'TEAM-NEXT_{}'.format(y),
+                                       prefix.upper()]))
+
+    return records
+
+
 def _print_additional_rcdtypes(old, new):
     print(len(old))
     print(len(new))
@@ -469,12 +516,19 @@ def main(js, src, tgt, src_out, json_out):
 
             # (4) Player features
             # records_feat = player_features(records_feat)
+
+            # (5) Team schedules
+            records_feat = get_next_games(tbl, records_feat)
+
             output.append(' '.join(records_feat))
             # print(len(records_feat))
             # _print_additional_rcdtypes(records, records_feat)
             tbl_out = _update_linescores(tbl, records_feat)
             # print(tbl_out['home_line'].keys())
             fout_js.write(tbl_out)
+
+        pprint(no_next)
+        pdb.set_trace()
 
         for s in output:
             fout.write("{}\n".format(s))
@@ -485,7 +539,7 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for DATASET in ['train', 'valid', 'test']:
+    for DATASET in ['valid']: #['train', 'valid', 'test']:
 
         print("Enrich dataset for {}".format(DATASET))
 
