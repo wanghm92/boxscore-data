@@ -208,6 +208,18 @@ def get_games_from_htmls():
 
                 # a team can only play one game in one day --> game_id can be uniquely identified
                 this_game = all_games[(all_games.GAME_DATE == datestr) & (all_games.TEAM_NAME.isin([home, away]))]
+                '''
+                home_game = this_game[this_game.TEAM_NAME.isin([home])]
+                if home_game['MATCHUP'].values:
+                    if not 'vs' in home_game['MATCHUP'].values[0]:
+                        print(home_game)
+                away_game = this_game[this_game.TEAM_NAME.isin([away])]
+                if away_game['MATCHUP'].values:
+                    if not '@' in away_game['MATCHUP'].values[0]:
+                        print(away_game)
+                # pdb.set_trace()
+                #'''
+
                 game_id = this_game['GAME_ID'].values
                 if len(game_id) == 1:
                     game_id = game_id[0]

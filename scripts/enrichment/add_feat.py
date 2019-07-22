@@ -406,47 +406,71 @@ def player_features(records, add_dd=False):
 '''
 
 
-def _search_game(gameday, team):
+def _search_game(gameday, name, city):
+    team = ' '.join([city, name])
     today = gameday
     for i in range(5):
+        # increment day by 1
         today += datetime.timedelta(days=1)
         month, day, year = today.month, today.day, today.year
         datestr = "20%02d-%02d-%02d" % (year, month, day)
-        tmp = all_games[(all_games.GAME_DATE == datestr) & (all_games.TEAM_NAME.isin([team]))]
-        if not tmp.empty:
-            game_id = tmp.GAME_ID.values[0]
+        candidate = all_games[(all_games.GAME_DATE == datestr) & (all_games.TEAM_NAME.isin([team]))]
+
+        # candidate game: the most recent game with the team name
+        if not candidate.empty:
+            # get the opponent team
+            game_id = candidate.GAME_ID.values[0]
             next = all_games[(all_games.GAME_ID == game_id) & (~all_games.TEAM_NAME.isin([team]))]
-            next = next.TEAM_NAME.values[0]
-            day_of_week = calendar.day_name[today.weekday()]
-            if 'Trail Blazers' in next:
-                next_team = 'Trail Blazers'
-                next_city = next.replace('Trail Blazers', '').strip()
+            next_full = next.TEAM_NAME.values[0]
+
+            # the only two-word team
+            if 'Trail Blazers' in next_full:
+                next_name = 'Trail Blazers'
             else:
-                next_team = next.split()[-1].strip()
-                next_city = ' '.join(next.split()[:-1]).strip()
+                next_name = next_full.split()[-1].strip()
+            next_city = next_full.replace(next_name, '').strip()
 
-            return next_team, next_city, day_of_week
+            # get if this team is home/away in the next game by checking if 'vs' is in MATCHUP, '@' for away team
+            next_ha = 'home' if 'vs' in next['MATCHUP'].values[0] else 'away'
+            # daystr = "%02d_%02d_%02d" % (month, day, year)
+            # key = "{}-{}-{}".format(daystr, name, next_name)
+            # try:
+            #     next_ha = homeaway_lkt[key][name]
+            # except:
+            #     next_ha = 'N/A'
+            # pdb.set_trace()
 
-    return 'N/A', 'N/A', 'N/A'
+            day_of_week = calendar.day_name[today.weekday()]
 
-no_next = {'home':0, 'away':0}
+            return '_'.join(next_name.strip().split()), '_'.join(next_city.strip().split()), day_of_week, next_ha
+
+    return 'N/A', 'N/A', 'N/A', 'N/A'
+
+
+no_next = {'home':0, 'away':0, 'ha':0}
 no_next_summaries = []
-def get_next_games(tbl, records):
+def get_next_games(records, tbl):
     global no_next
     month, day, year = tbl['day'].split('_')
     gameday = datetime.date(int(year), int(month), int(day))
-    home = "{} {}".format(tbl['home_city'], tbl['home_name'])
-    away = "{} {}".format(tbl['vis_city'], tbl['vis_name'])
 
-    for team, prefix in zip([home, away], ['home', 'away']):
-        name, city, day = _search_game(gameday, team)
-        if name == 'N/A':
+    for identifier in ['home', 'vis']:
+        this_name = tbl['{}_name'.format(identifier)]
+        this_city = tbl['{}_city'.format(identifier)]
+
+        next_name, next_city, next_day, next_ha = _search_game(gameday, this_name, this_city)
+
+        prefix = 'away' if identifier == 'vis' else 'home'
+        if next_name == 'N/A':
             no_next[prefix] += 1
             no_next_summaries.append(' '.join(tbl['summary']))
-        for x, y in zip([name, city, day], ['NAME', 'CITY', 'DAY']):
-            records.append(DELIM.join([x,
-                                       tbl['{}_name'.format('vis' if prefix == 'away' else 'home')],
-                                       'TEAM-NEXT_{}'.format(y),
+        if next_ha == 'N/A':
+            no_next['ha'] += 1
+
+        for entry, suffix in zip([next_name, next_city, next_day, next_ha], ['NAME', 'CITY', 'DAY', 'HA']):
+            records.append(DELIM.join([entry,
+                                       '_'.join(this_name.split()),
+                                       'TEAM-NEXT_{}'.format(suffix),
                                        prefix.upper()]))
 
     return records
@@ -461,7 +485,7 @@ def _print_additional_rcdtypes(old, new):
     pdb.set_trace()
 
 
-def _update_linescores(tbl, records_feat):
+def _update_linescores(records_feat, tbl):
     line_keys_ext = sorted(knowledge_container.line_keys_ext)
 
     home = {x.split(DELIM)[2]: x.split(DELIM)[0]
@@ -518,20 +542,46 @@ def main(js, src, tgt, src_out, json_out):
             # records_feat = player_features(records_feat)
 
             # (5) Team schedules
-            records_feat = get_next_games(tbl, records_feat)
+            records_feat = get_next_games(records_feat, tbl)
 
             output.append(' '.join(records_feat))
             # print(len(records_feat))
             # _print_additional_rcdtypes(records, records_feat)
-            tbl_out = _update_linescores(tbl, records_feat)
+            tbl_out = _update_linescores(records_feat, tbl)
             # print(tbl_out['home_line'].keys())
             fout_js.write(tbl_out)
 
         pprint(no_next)
-        pdb.set_trace()
+        # pdb.set_trace()
 
         for s in output:
             fout.write("{}\n".format(s))
+
+'''
+# not needed anymore
+def _get_homeaway_lkt():
+
+    homeaway_lkt = {}
+
+    for DATASET in ['train', 'valid', 'test']:
+        js = os.path.join("../new_dataset/new_jsonl", "%s.jsonl" % DATASET)
+        with jsonlines.open(js, 'r') as fin_js:
+
+            tables = [i for i in fin_js.iter(type=dict, skip_invalid=True)]
+
+            for t in tables:
+                home = t['home_name']
+                away = t['vis_name']
+                day = t['day']
+                entry = {
+                    home: 'home',
+                    away: 'away'
+                }
+                homeaway_lkt['{}-{}-{}'.format(day, home, away)] = entry
+                homeaway_lkt['{}-{}-{}'.format(day, away, home)] = entry
+
+    return homeaway_lkt
+'''
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
@@ -539,7 +589,9 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for DATASET in ['valid']: #['train', 'valid', 'test']:
+    # homeaway_lkt = _get_homeaway_lkt()
+
+    for DATASET in ['train', 'valid', 'test']:
 
         print("Enrich dataset for {}".format(DATASET))
 
