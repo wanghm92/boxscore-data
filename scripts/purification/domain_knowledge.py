@@ -139,7 +139,7 @@ class Domain_Knowledge:
             'TEAM-AST', 'TEAM-BLK', 'TEAM-STL', 'TEAM-TOV',
             'TEAM-WINS', 'TEAM-LOSSES',
             'TEAM-ALIAS', 'TEAM-ARENA', 'TEAM-CITY', 'TEAM-NAME',
-            'TEAM-NEXT_NAME', 'TEAM-NEXT_CITY', 'TEAM-NEXT_DAY'
+            'TEAM-NEXT_NAME', 'TEAM-NEXT_CITY', 'TEAM-NEXT_DAY', 'TEAM-NEXT_HA'
         ]
 
 

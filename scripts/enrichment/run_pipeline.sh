@@ -2,7 +2,7 @@
 echo "add_feat"
 python add_feat.py
 echo "extract_outline_ext"
-python extract_outline_ext.py
+python extract_outline_remove_unground.py
 echo "finalize"
 python finalize.py
 

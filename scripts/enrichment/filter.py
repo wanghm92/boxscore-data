@@ -1,329 +1,189 @@
-"""
-    This script discards about 12% (#words)
-"""
-
-import re, io, copy, os, sys, argparse, pdb
-from tqdm import tqdm
-from collections import Counter, OrderedDict
-from pprint import pprint
+import re, os, sys, pdb
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 
 LOWER = False
 DELIM = "￨"
-
-parser = argparse.ArgumentParser(description='clean')
-parser.add_argument('--dir', type=str, default='../new_dataset/new_clean/',
-                    help='directory of src/tgt_train/valid/test.txt files')
-parser.add_argument('--dataset', type=str, required=True, help='train, valid test')
-args = parser.parse_args()
-DATASET = args.dataset
-
-input_files = [
-    "src_%s.norm.tk.txt" % DATASET,
-    "tgt_%s.norm.tk.txt" % DATASET,
-    "tgt_%s.norm.mwe.txt" % DATASET
-
-]
-
-fin_src_tk, fin_tgt_tk, fin_tgt_mwe = [os.path.join(args.dir, "{}/{}".format(DATASET, f)) for f in input_files]
-
-output_files = [
-    "tgt_%s.norm.filter.tk.txt" % DATASET,
-    "tgt_%s.norm.filter.mwe.txt" % DATASET
-]
-# out_dir = "outputs/{}".format(DATASET)
-fout_tgt_tk, fout_tgt_mwe = [os.path.join(args.dir, "{}/{}".format(DATASET, f)) for f in output_files]
-
+days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+signals = ['next', 'home', 'road', 'host', 'will', 'visit']
 out = []
 total = 0
 discard = 0
 discard_words = 0
-
-# ----------------------------------------------- #
-# --- Filtering sentences without any numbers --- #
-# ----------------------------------------------- #
-# NOTE: constraint relaxed to include inference and aggregation types
-
 nums = re.compile('[0-9]+')
-temp_dir = os.path.join(args.dir, "{}/temp".format(DATASET))
-os.makedirs(temp_dir, exist_ok=True)
-tmpf = os.path.join(temp_dir, "noNumbers.txt")
-
-'''
-with io.open(fin_tgt_mwe, 'r', encoding='utf-8') as fin, io.open(tmpf, 'w+', encoding='utf-8') as fout:
-    dataset = fin.read()
-    dataset = dataset.strip().split('\n')
-    for paragraph in dataset:
-        remaining = []
-        sents = [x.strip() for x in paragraph.split(' . ')]
-        for s in sents:
-            total += 1
-            if not re.search(nums, s):
-                out.append(s)
-                continue
-            remaining.append(s)
-        remaining = ' . '.join(remaining)
-        fout.write("{}\n".format(remaining))
-#'''
-
-# --------------------------------------------------------------------- #
-# --- Filtering sentences talking about facts regarding other teams --- #
-# --------------------------------------------------------------------- #
 
 contain_other_teams = []
 contain_other_cities = []
 alias2team = knowledge_container.alias2team
 
-days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-signals = ['next', 'home', 'road', 'host', 'will', 'visit']# + days
-
-with io.open(fin_src_tk, 'r', encoding='utf-8') as fin_src, \
-        io.open(tmpf, 'r', encoding='utf-8') as fin_tgt, \
-        io.open("{}.noOtherTeams.txt".format(tmpf[:-4]), 'w+', encoding='utf-8') as fout:
-
-    targets = fin_tgt.read()
-    targets = targets.strip().split('\n')
-
-    inputs = fin_src.read()
-    inputs = inputs.strip().split('\n')
-
-    if LOWER:
-        targets = [x.lower() for x in targets]
-        inputs = [x.lower() for x in inputs]
-
-    team_names = []
-    city_names = []
-    for sample in inputs:
-        for rcd in sample.split():
-            a, b, c, d = rcd.strip().split(DELIM)
-            if 'TEAM' in c:
-                team_names.append(b)
-            if c == 'TEAM-CITY':
-                city_names.append(a)
-    team_vocab = Counter(team_names)
-    city_vocab = Counter(city_names)
-
-    assert len(inputs) == len(targets)
-    for inp, para in tqdm(zip(inputs, targets)):
-        remaining = []
-
-        # ------ get what this summary paragraph is taking about: team + city ------ #
-        thisteams = {}
-        thiscities = {}
-        thisinputs = inp.split()
-        thisinputs.reverse()
-        for rcd in thisinputs:
-            a, b, c, d = rcd.strip().split(DELIM)
-            if 'TEAM' in c:
-                if not b in thisteams:
-                    thisteams[b] = True
-            if c == 'TEAM-CITY':
-                if not b in thiscities:
-                    thiscities[a] = True
-            if len(thisteams.items()) == 2 and len(thiscities) == 2:
-                break
-
-        # ------ filter out sentences talking about team/city other than this pair ------ #
-        sents = [x.strip() for x in para.split(' . ')]
-        for s in sents:
-            total += 1
-            flag = False
-            # check every single word
-            for tk in s.split():
-                # resolve team alias
-                if tk in alias2team:
-                    tk = alias2team[tk]
-                if not flag and tk in team_vocab and not tk in thisteams:
-                    contain_other_teams.append(s)
-                    flag = True
-                if not flag and tk in city_vocab and not tk in thiscities:
-                    contain_other_cities.append(s)
-                    flag = True
-                if flag:
-                    check_sigs = [i in s for i in signals]
-                    if any(check_sigs):
-                        # print(s)
-                        try:
-                            contain_other_teams.pop()
-                        except:
-                            pass
-                        try:
-                            contain_other_cities.pop()
-                        except:
-                            pass
-                        # pdb.set_trace()
-                        flag = False
-                    break
-            if not flag:
-                remaining.append(s)
-        remaining = ' . '.join(remaining)
-        fout.write("{}\n".format(remaining))
-
-l1 = len(contain_other_teams)
-print(contain_other_teams)
-words = sum([len(x.split()) for x in contain_other_teams])
-print("{} sentences with {} words out of {} sentences are discarded".format(l1, words, total))
-print("Some discarded sentences:")
-print(contain_other_teams[-10:])
-l2 = len(contain_other_cities)
-words = sum([len(x.split()) for x in contain_other_cities])
-print(contain_other_cities)
-print("{} sentences with {} words out of {} sentences are discarded".format(l2, words, total))
-print("Some discarded sentences:")
-print(contain_other_cities[-10:])
-print("{} + {} = {} sentences are discarded".format(l1, l2, l1 + l2))
-
-discard += l1+l2
-discard_words += words
-
-# ----------------------------------- #
-# --- Remaining bulk of filtering --- #
-# ----------------------------------- #
-
-def get_player_name_one(sample):
-    names = []
-    records = sample.strip().split()
-    for rcd in records:
-        _, name, _, _ = rcd.strip().split(DELIM)
-        names.append(name)
-    all_names = list(set(names))
-    try:
-        all_names.remove('N/A')
-    except:
-        pass
-
-    return all_names
-
-
-def contain_number(s):
-    return any([x.isdigit() for x in s.strip().split()])
-
-
-# ------ mask these (unwanted) numbers then check if anymore left: no, discard ------ #
+# ------ mask these (unwanted) numbers then check if anymore numbers left ------ #
 years = re.compile(' [0-9]{4} - [0-9]{2} ')
 months = re.compile('(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d+')
 other_stats = re.compile(' [0-9]+ (?:games*|days*|man|men|ties*|lead|teams*|contests) ')
-averages = re.compile(' averag[eing]* [0-9]+ ')
-per_sth = re.compile(' [0-9]+ per ')
+averages = re.compile(' averag[eing]* ')
 ordinal = re.compile(' [0-9]+th ')
 seed = re.compile(' [0-9]+( -) seed ')
 homestead = re.compile(' [0-9] - game homestead')
-
-num_patterns = [years, months, other_stats, averages, per_sth, ordinal, homestead]
+num_patterns = [years, months, other_stats, averages, ordinal, homestead]
 
 # ------ sentences talking about these topics: discard ------ #
 streak = re.compile('(?:win[ing]*|los[ing]*|hot|a|the|\'s|) streak')
 seconds = re.compile('[0-9]+ seconds ')  # (?:remain[ing]*|left|on the clock|to (:?play|go)(:? in the game)*)
+straight = re.compile('straight (?:games*|seasons*) ')
+in_a_row = re.compile('in a row')
+per_sth = re.compile(' [0-9]+(?: \S+)* per ')
+histories = '|'.join(['game', 'minute', 'contest', 'outing', 'week', 'shot', 'matchup', 'season', 'year', 'meeting'])
+last_games_long = re.compile('[0-9]+(?: of)*(?: \S+)* (?:last|previous|first|past) [0-9]+ (?:{})s*'.format(histories))
+last_games_short = re.compile('(?:last|previous|first|past) (?:[0-9]+ )*(?:{})s*'.format(histories))
+division = re.compile('\S+ Division')
+all_start_break = re.compile('the All-Star break')
+filter_patterns = [seconds, streak, straight, in_a_row, per_sth, last_games_long, last_games_short, division, all_start_break]
+
+# ---- patterns awaiting to be used of extract team schedules ---- #
 will_next = re.compile(' [Nn]ext | previous | will | \'ll ')
 on_the_road = re.compile('on the road')
-straight = re.compile('straight (?:games*|seasons*) ')
-histories = '|'.join(['game', 'minute', 'contest', 'outing', 'week', 'shot', 'matchup', 'season', 'year', 'meeting'])
-last_games = re.compile('[0-9]+(?: of)*(?: \S+)* (?:last|previous|first|past) [0-9]+ (?:{})s*'.format(histories))
-
-division = re.compile('\S+ Division')
-filter_patterns = [seconds, streak, straight, last_games, division]
-
 nums = re.compile('[0-9]+')
 weekdays = re.compile('|'.join(days))
 
-out = []
-no_nums = []
-with io.open(fin_src_tk, 'r', encoding='utf-8') as fin_src, \
-        io.open("{}.noOtherTeams.txt".format(tmpf[:-4]), 'r', encoding='utf-8') as fin_tgt, \
-        io.open(fout_tgt_tk, 'w+', encoding='utf-8') as fout_tk, \
-        io.open(fout_tgt_mwe, 'w+', encoding='utf-8') as fout_mwe:
+# ---- aggregation patterns ---- #
+key_words = ['combine', 'put together']
 
-    targets = fin_tgt.read()
-    targets = targets.strip().split('\n')
-    inputs = fin_src.read()
-    inputs = inputs.strip().split('\n')
 
-    if LOWER:
-        targets = [x.lower() for x in targets]
-        inputs = [x.lower() for x in inputs]
+def _whats_next(inp):
+    tmp = {}
+    str2nextrcds = {}
+    for rcd in inp.split():
+        value, field, rcd_type, ha = rcd.split(DELIM)
+        if rcd_type.startswith('TEAM-NEXT'):
+            tmp[DELIM.join([rcd_type, ha])] = (value, field)
+            str2nextrcds[value] = rcd
 
-    for inp, para in tqdm(zip(inputs, targets)):
+    upcomings = {
+        'HOME': {'NAME': 'N/A', 'CITY': 'N/A', 'DAY': 'N/A'},
+        'AWAY': {'NAME': 'N/A', 'CITY': 'N/A', 'DAY': 'N/A'}
+    }
 
-        player_names = get_player_name_one(inp)
-        thisgameplayers = dict.fromkeys(player_names, True)
+    for ha in ['HOME', 'AWAY']:
+        for suffix in ['NAME', 'CITY', 'DAY']:
+            upcomings[ha][suffix] = tmp[DELIM.join(['TEAM-NEXT_{}'.format(suffix), ha])]
+    return upcomings, str2nextrcds
 
-        remaining = []
-        thisteams = {}
-        thiscities = {}
-        thisinputs = inp.split()
-        thisinputs.reverse()
-        for rcd in thisinputs:
-            a, b, c, d = rcd.strip().split(DELIM)
-            if 'TEAM' in c:
-                if not b in thisteams:
-                    thisteams[b] = True
-            if c == 'TEAM-CITY':
-                if not b in thiscities:
-                    thiscities[a] = True
-            if len(thisteams.items()) == 2 and len(thiscities) == 2:
-                break
 
-        thisgame = list(thisteams.keys()) + list(thiscities.keys())
-        sents = [x.strip() for x in para.split(' . ') if len(x.strip()) > 0]
-        oneteam = re.compile('(?:{}) \( [0-9]+ - [0-9]+ \)'.format('|'.join(thisgame)))
+def _get_schedule_plan(this, str2nextrcds):
+    plan = []
+    for tk in this.split():
+        if tk in str2nextrcds:
+            plan.append(str2nextrcds[tk])
+    return plan if len(plan)>0 else None
 
-        # do not filter the 1st sentence
-        remaining.append(sents[0])
 
-        # loop through
-        day_of_week = re.findall(weekdays, sents[0])
-        for idx, s in enumerate(sents[1:]):
-            temp = copy.deepcopy(s)
-            if len(re.findall(oneteam, temp)) == 1:
-                temp = re.sub(oneteam, ' dummystring ', temp)
-                # after filtering out team stats, if no other number left, this sentence is talking about some fact of team not available from table
-                if not contain_number(temp):
-                    out.append(s)
-                    continue
+def _contain_number(s):
+    return any([x.isdigit() for x in s.strip().split()])
 
-            # discard sentences with unwanted topics, see above
-            tofilter = [re.search(x, temp) is not None for x in filter_patterns]
-            if any(tofilter):
-                out.append(s)
-                continue
 
-            # mask out number patterns not interested in
-            for p in num_patterns:
-                temp = re.sub(p, ' dummystring ', temp)
+def _talking_about_schecule(this, other_team, upcomings):
 
-            # discard if no numbers in sentence after masking out unwanted ones
-            if not contain_number(temp):
-                no_nums.append(s)
-                continue
+    # case 1: for regular seasons, different opponent
+    lkt = {w: True for w in this.strip().split()}
+    if len(other_team) > 0 and any([i in lkt for i in signals]) and any([i in lkt for i in days]):
+        return True
 
-            # if we know which day_of_week this game was played, discard any other sentences mentioning other days of week
-            if len(day_of_week) > 0:
-                thisday = day_of_week[0]
-                otherdays = [x for x in days if x != thisday]
-                tmp_pattern = re.compile('|'.join(otherdays))
-                if re.search(tmp_pattern, temp):
-                    out.append(s)
-                    continue
+    # case 2: for playoffs, sometimes same opponent
+    else:
+        days_lkt = dict.fromkeys(days)
+        schedule_info = [x for x in set(list(upcomings['HOME'].values()) + list(upcomings['AWAY'].values()))
+                         if not x in days_lkt]
+        if len(other_team) == 0 and any([i in lkt for i in signals]) and any([i in lkt for i in schedule_info]):
+            return True
 
-            remaining.append(s)
+    return False
 
-        remaining = ' . '.join([x.strip() for x in remaining if len(x.strip()) > 0])
-        remaining = remaining.replace('..', '.')
-        if remaining.endswith('.'):
-            remaining = remaining[:-1].strip()
-        fout_mwe.write("{} .\n".format(remaining))
-        remaining = ' '.join(remaining.split('_'))
-        fout_tk.write("{} .\n".format(remaining))
 
-for i in no_nums: print("{}\n".format(i))
-print(len(no_nums))
-words = sum([len(x.split()) for x in out])
-print("{} sentences with {} words out of {} sentences are discarded".format(len(out), words, total))
-print("Some discarded sentences:")
-print(out[-10:])
-discard += len(out)
-discard_words += words
-print("[TOTAl] {} sentences with {} words out of {} sentences are discarded".format(discard, discard_words, total))
+def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds,
+                           table, city2team, alias2team, team_vocab, city_vocab):
+
+    # only allow one sentence in the buffer
+    if buffer['text'] is not None:
+        return buffer, 'gogogo'
+
+    this = sentences[cnt]
+    this_players = [x for x in this.strip().split() if x in table['Players']]
+    this_teams = [x for x in this.strip().split() if x in table['Teams'] or x in city2team or x in alias2team]
+
+    # discard sentences with unwanted topics, see above
+    if any([re.search(x, this) is not None for x in filter_patterns]):
+        buffer = {'plan': None, 'text': None}
+        return buffer, 'skip'
+
+    # mask out number patterns not interested in
+    for p in num_patterns:
+        this = re.sub(p, ' dummystring ', this)
+
+    oneteam = re.compile('(?:{}) \( [0-9]+ - [0-9]+ \)'.format('|'.join(this_teams)))
+    if len(re.findall(oneteam, this)) == 1:
+        this = re.sub(oneteam, ' dummystring ', this)
+
+    upcomings, str2nextrcds = _whats_next(inp)
+
+    # no-number sentences
+    if not _contain_number(this):
+        # case 1: a general statement on a group of players, followed by their individual performances
+        next = sentences[cnt + 1] if cnt + 1 < len(sentences) else None
+        if next is not None:
+            next_players = [x for x in next.strip().split() if x in table['Players']]
+
+            if len(this_players) > 0 and \
+                    (any([x in next_players for x in this_players])
+                     or next.startswith('He')
+                     or next.startswith('They')):
+                print("next_players = {}".format(next_players))
+                print("this_players = {}".format(this_players))
+                buffer['text'] = this
+                buffer['plan'] = [allstr2rcds[p][0] for p in this_players]
+                cat = 'player-inf'
+
+            elif len(this_teams) > 0 and next.startswith('They'):
+                buffer['text'] = this
+                buffer['plan'] = [allstr2rcds[p][0] for p in this_teams]
+                cat = 'team-inf'
+            else:
+                if buffer['text'] is not None:
+                    pdb.set_trace()
+                cat = 'skip'
+
+        else:
+            # case 2: team schedule
+            other_team = []
+            for tk in this.split():
+                # resolve team alias
+                if tk in alias2team:
+                    tk = alias2team[tk]
+                if len(other_team)==0 and tk in team_vocab and not tk in table['Teams']:
+                    other_team.append(tk)
+                    break
+                if len(other_team)==0 and tk in city_vocab and not tk in city2team:
+                    other_team.append(tk)
+                    break
+
+            if _talking_about_schecule(this, other_team, upcomings):
+                buffer['text'] = this
+                buffer['plan'] = _get_schedule_plan(this, str2nextrcds)
+                if buffer['plan'] is not None:
+                    print(buffer)
+                    print("str2nextrcds = {}".format(str2nextrcds))
+                    print("next = {}".format(next))
+                    # pdb.set_trace()
+                cat = 'schedule'
+            else:
+                cat = 'skip'
+
+    else:
+        # TODO: case 3: combined performance statistics, hard to capture, left to content plan to decide
+        # if 'combin' in this:
+        #     print(this)
+        cat = 'gogogo'
+    # if buffer['text'] is not None:
+    #     pdb.set_trace()
+    return buffer, cat
 
 

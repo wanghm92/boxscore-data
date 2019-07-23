@@ -15,9 +15,11 @@ Taking care of extra line score items:
 import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil
 from tqdm import tqdm
 from collections import Counter, OrderedDict
-sys.path.insert(0, '../purification/')
+sys.path.insert(0, os.path.abspath('../purification'))
+print(sys.path)
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
+from filter import dont_extract_this_sent
 
 LOWER = False
 DELIM = "￨"
@@ -32,9 +34,9 @@ MAX_PLAN=80
 MIN_SUMM=50
 MAX_SUMM=350
 
-# ------------------------------- #
-# --- very important patterns --- #
-# ------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
+# ---------------------------------------------- very important patterns --------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
 
 # a long pattern with 2-6 numbers
 pattern1 = re.compile("\( (?:\d+ - \d+ FG)?(?: (?:,|\.) \d+ - \d+ 3PT)?(?: (?:,|\.) \d+ - \d+ FT)? \)")
@@ -104,10 +106,10 @@ suffix2field = dict.fromkeys(['field', 'floor'])
 suffix2three = dict.fromkeys(['three_point', 'beyond', 'behind', 'long', 'deep', 'downtown', '3', 'distance'])
 suffix2foul = dict.fromkeys(['free_throw', 'charity', 'line', 'foul', 'stripe'])
 
-# ----------------------------------------- #
-# --- identify patterns to be processed --- #
-# ----------------------------------------- #
 
+# -------------------------------------------------------------------------------------------------------------------- #
+# ---------------------------------------- identify patterns to be processed ----------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
 
 def mark_records(sent):
     x = copy.deepcopy(sent)
@@ -128,7 +130,7 @@ def mark_records(sent):
             x = x.replace(f, rep)
 
     for idx, (k, v) in (list(word2record.items()) + list(post_donts.items())):
-        p = re.compile("\d+ (?:- )*{}(?:s|ed)*".format(k))
+        p = re.compile("\d+ (?:- |team )*{}(?:s|ed)*".format(k))
         delim = "#DELIM{}#".format(idx)
         for f in re.findall(p, x):
             rep = "{}{}{}".format(delim, delim.join(f.split()), delim)
@@ -137,9 +139,9 @@ def mark_records(sent):
     return x
 
 
-# ------------------------------- #
-# --- very important patterns --- #
-# ------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
+# ------------------------------------------ extract content plan from mwe ------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
 
 def _get_record(value, num2rcds, priority):
     candidates = num2rcds.get(value, None)
@@ -234,12 +236,15 @@ def _construct_dummy_plan(table, rcd2idx):
     return ' '.join(paragraph_plan_ids), ' '.join(paragraph_plan)
 '''
 
-# ------------------------------- #
-# --- very important patterns --- #
-# ------------------------------- #
-
 
 def get_records(phrase, num2rcds, the_other_team_records):
+    """
+    :param phrase: marked mwe to of one type of pattern
+    :param num2rcds: lookup
+    :param the_other_team_records: sometimes a sentence compares to the other team without explicitly mentioning it
+    :return: content plan, corrected phrase, locations of the numbers
+    """
+
     # print(phrase)
     p = re.compile("#DELIM(\d+)#")
     temp = re.findall(p, phrase)
@@ -591,12 +596,12 @@ def get_records(phrase, num2rcds, the_other_team_records):
     return result, correct_phrase, numbers_are_at
 
 
-# ------------------------------- #
-# --- main() --- #
-# ------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
+# ------------------------------------------------------ main -------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------------- #
 RCD_PER_PLAYER = 21
 NUM_PLAYERS = 26
-RCD_PER_TEAM = 40
+RCD_PER_TEAM = len(knowledge_container.line_keys_ext)
 NUM_TEAMS = 2
 
 alias2team = knowledge_container.alias2team
@@ -628,12 +633,12 @@ def main(args, DATASET):
         "%s.ext.jsonl" % DATASET,
         "src_%s.norm.ext.txt" % DATASET,
         "tgt_%s.norm.mwe.txt" % DATASET,
-        "tgt_%s.norm.filter.mwe.txt" % DATASET
+        # "tgt_%s.norm.filter.mwe.txt" % DATASET
     ]
 
-    js, clean_src, clean_tgt, clean_tgt_filter = [os.path.join(BASE_DIR, f) for f in input_files]
+    js, clean_src, clean_tgt = [os.path.join(BASE_DIR, f) for f in input_files]
 
-    for f in [js, clean_tgt, clean_tgt_filter]:
+    for f in [js, clean_tgt]:
         if not os.path.exists(f):
             bname = os.path.basename(f)
             print("{} does not exist, copying from ../new_dataset/new_clean/{}/{}".format(f, DATASET, bname))
@@ -660,9 +665,9 @@ def main(args, DATASET):
     output_count = 0
     dummy = 0
     too_long_or_short = 0
+    filter_types = {}
     with io.open(clean_src, 'r', encoding='utf-8') as fin_src, \
             io.open(clean_tgt, 'r', encoding='utf-8') as fin_tgt, \
-            io.open(clean_tgt_filter, 'r', encoding='utf-8') as fin_tgt_filter, \
             jsonlines.open(js, 'r') as fin_js, \
             io.open(js_trim, 'w+', encoding='utf-8') as fout_js_trim, \
             io.open(js_trim_fulltgt, 'w+', encoding='utf-8') as fout_js_full, \
@@ -677,12 +682,20 @@ def main(args, DATASET):
         output_table_fulltgt = []
 
         original_summaries = fin_tgt.read().strip().split('\n')
+        targets = original_summaries
+        inputs = fin_src.read().strip().split('\n')
 
-        targets = fin_tgt_filter.read()
-        targets = targets.strip().split('\n')
-
-        inputs = fin_src.read()
-        inputs = inputs.strip().split('\n')
+        team_names = []
+        city_names = []
+        for sample in inputs:
+            for rcd in sample.split():
+                a, b, c, d = rcd.strip().split(DELIM)
+                if 'TEAM' in c:
+                    team_names.append(b)
+                if c == 'TEAM-CITY':
+                    city_names.append(a)
+        team_vocab = Counter(team_names)
+        city_vocab = Counter(city_names)
 
         assert len(original_summaries) == len(targets) == len(inputs)
 
@@ -698,13 +711,24 @@ def main(args, DATASET):
 
             # ------ get record to index lookup ------ #
             rcd2idx = {}
-            assert len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS
+
+            if not len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS:
+                print(len(inp.strip().split()))
+                print(RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS)
+                pdb.set_trace()
+
+            allstr2rcds = {}
             for i, rcd in enumerate(inp.strip().split()):
                 value, field, rcd_type, ha = rcd.split(DELIM)
                 if value == 'N/A' or field == 'N/A':
                     continue
                 if rcd in rcd2idx:
                     print("*** WARNING *** duplicate record at line # {}".format(i))
+                if not value.isdigit():
+                    if not value in allstr2rcds:
+                        allstr2rcds[value] = [rcd]
+                    else:
+                        allstr2rcds[value].append(rcd)
                 rcd2idx[rcd] = str(i)
 
             # ------ get player and team record dictionary ------ #
@@ -737,12 +761,22 @@ def main(args, DATASET):
             # ------ process each sentence ------ #
             paragraph_plan = []
             paragraph_text = []
+            buffer = {'plan': None, 'text': None}
             sentences = summary.strip().split(' . ')
             word_pos = 0
             rcd_pos = 0
             pointers = []
             for cnt, sent in enumerate(sentences):
                 sent_count += 1
+
+                buffer, cat = dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds,
+                                                     table, city2team, alias2team, team_vocab, city_vocab)
+                filter_types.setdefault(cat, 0)
+                filter_types[cat] += 1
+                # go to the next sentence if in the following categories --> buffer will be cleared next
+                if cat in ['player-inf', 'team-inf', 'schedule', 'skip']:
+                    continue
+
                 # print("\n\n\n\n *** sent # {} *** is : \n{}".format(cnt, sent))
                 pre_check_player = [x for x in sent.strip().split() if x in table['Players']]
                 pre_check_team = [x for x in sent.strip().split() if
@@ -823,6 +857,10 @@ def main(args, DATASET):
                     # keep track which team is mentioned, the other one might still be useful
                     if team in this_game_teams:
                         this_game_teams.remove(team)
+                    else:
+                        print("Team not found: {}".format(team))
+                        del current_sent_teams[team]
+                        continue
                     team_records = table['Teams'][team]
                     this_sent_records.extend(team_records)
 
@@ -885,7 +923,7 @@ def main(args, DATASET):
                 sentence_plan = []
                 sentence_plan_numonly = []
                 starting_word_pos = word_pos
-                # NOTE: where stupid magic happens
+                # NOTE: applying lots of heuristics
                 for mwe in sent.strip().split():
                     # print('-'*10 + 'new mwe : {} ({}) '.format(mwe, word_pos) + '-'*10)
                     # include the player/team/city name (alias not available before feature extension)
@@ -971,8 +1009,14 @@ def main(args, DATASET):
                             pointers.append(','.join(map(str, [word_pos, rcd_pos])))
                             rcd_pos += 1
 
-                # filter out sentences nothing is found for the player/team
+                # filter out sentences with nothing found for the player/team
                 if len(sentence_plan_numonly) > 0:
+                    # include the previous buffer sentence
+                    if buffer['plan'] is not None and buffer['text'] is not None:
+                        print('adding contents in buffer = {}'.format(buffer))
+                        paragraph_text.append(buffer['text'])
+                        paragraph_plan.extend(buffer['plan'])
+
                     paragraph_plan.extend(sentence_plan)
                     correct_sent = ' '.join(phrases)
                     paragraph_text.append(correct_sent)
@@ -987,17 +1031,26 @@ def main(args, DATASET):
                         rcd_pos -= 1
                         # print("After popping: {}".format(pointers))
 
+                # NOTE: clear the buffer no matter what
+                buffer = {'plan': None, 'text': None}
+
+            # take care of non-empty buffer when last sent is finished
+            if buffer['plan'] is not None and buffer['text'] is not None:
+                print('adding contents in buffer = {}'.format(buffer))
+                paragraph_text.append(buffer['text'])
+                paragraph_plan.extend(buffer['plan'])
+
             paragraph_plan_ids = [rcd2idx[rcd] for rcd in paragraph_plan]
 
-            if not len(paragraph_plan) == len(paragraph_plan_ids) == len(pointers):
-                print("\nI'm here")
-                print(paragraph_text)
-                print(len(paragraph_plan))
-                print(len(paragraph_plan_ids))
-                print(paragraph_plan)
-                print(len(pointers))
-                print(pointers)
-                sys.exit(0)
+            # if not len(paragraph_plan) == len(paragraph_plan_ids) == len(pointers):
+            #     print("\nI'm here")
+            #     print(paragraph_text)
+            #     print(len(paragraph_plan))
+            #     print(len(paragraph_plan_ids))
+            #     print(paragraph_plan)
+            #     print(len(pointers))
+            #     print(pointers)
+            #     pdb.set_trace()
 
             paragraph_text = ' . '.join(paragraph_text)
             summ_len = len(paragraph_text.split())
