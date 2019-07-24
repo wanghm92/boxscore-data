@@ -16,7 +16,7 @@ all_games = pd.read_pickle("/mnt/bhd/hongmin/nba/crawl/all_games.pkl")
 def _get_arena_old_new(hometeam, year):
     if (hometeam == 'Jazz' and year <= 2015) \
         or (hometeam == 'Kings' and year <= 2016) \
-           or (hometeam == 'Suns' and year <= 2015):
+        or (hometeam == 'Suns' and year <= 2015):
         return 1
     return 0
 

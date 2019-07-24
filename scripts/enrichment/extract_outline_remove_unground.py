@@ -6,11 +6,12 @@ Taking care of extra line score items:
 ['TEAM-PTS_SUM-BENCH', 'TEAM-PTS_SUM-START']
 (3) added
 ['TEAM-PTS_HALF-FIRST', 'TEAM-PTS_HALF-SECOND', 'TEAM-PTS_QTR-1to3', 'TEAM-PTS_QTR-2to4']
-(4) TODO:
+(4) DONE:
     'TEAM-PTS_HALF_DIFF-FIRST', 'TEAM-PTS_HALF_DIFF-FIRST',
     'TEAM-PTS_QTR_DIFF-FIRST', 'TEAM-PTS_QTR_DIFF-SECOND', 'TEAM-PTS_QTR_DIFF-THIRD', 'TEAM-PTS_QTR_DIFF-FOURTH',
     'TEAM-PTS_TOTAL_DIFF'
 """
+# TODO: align max/min sentence with records
 
 import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil
 from tqdm import tqdm
@@ -226,8 +227,7 @@ def _construct_dummy_plan(table, rcd2idx):
         records = table['Teams'][team]
         rcd_type2rcd = {x.split(DELIM)[2]: x for x in records}
         team2dict[team] = rcd_type2rcd
-        paragraph_plan.extend([rcd_type2rcd['TEAM-CITY'], rcd_type2rcd['TEAM-NAME'], rcd_type2rcd['TEAM-WINS'],
-                               rcd_type2rcd['TEAM-WINS']])
+        paragraph_plan.extend([rcd_type2rcd['TEAM-CITY'], rcd_type2rcd['TEAM-NAME'], rcd_type2rcd['TEAM-WINS'], rcd_type2rcd['TEAM-WINS']])
 
     paragraph_plan.extend([team2dict[hometeam]['TEAM-PTS'], team2dict[awayteam]['TEAM-PTS']])
     paragraph_plan_ids = [rcd2idx[rcd] for rcd in paragraph_plan]
@@ -457,14 +457,12 @@ def get_records(phrase, num2rcds, the_other_team_records):
                             num2rcds[k] = v
                         else:
                             num2rcds[k].extend(v)
-                    temp1, num1 = retrieve_record(num1, num2rcds,
-                                                  priority=['TEAM-WINS', 'TEAM-PTS',
-                                                            'REB', 'AST', 'FTM', 'FGM', 'FG3M',
-                                                            'PTS_HALF-', 'PTS_QTR-'])
-                    temp2, num2 = retrieve_record(num2, num2rcds,
-                                                  priority=['TEAM-LOSSES', 'TEAM-PTS',
-                                                            'REB', 'AST', 'FTA', 'FGA', 'FG3A',
-                                                            'PTS_HALF-', 'PTS_QTR-'])
+                    temp1, num1 = retrieve_record(num1, num2rcds, priority=['TEAM-WINS', 'TEAM-PTS',
+                                                                            'REB', 'AST', 'FTM', 'FGM', 'FG3M',
+                                                                            'PTS_HALF-', 'PTS_QTR-'])
+                    temp2, num2 = retrieve_record(num2, num2rcds, priority=['TEAM-LOSSES', 'TEAM-PTS',
+                                                                            'REB', 'AST', 'FTA', 'FGA', 'FG3A',
+                                                                            'PTS_HALF-', 'PTS_QTR-'])
                     cp1, cp2 = None, None
                     # print("pattern 7 xx temp1 = {}".format(temp1))
                     # print("pattern 7 xx temp2 = {}".format(temp2))
@@ -476,14 +474,12 @@ def get_records(phrase, num2rcds, the_other_team_records):
                                 cp2 = y
                                 break
             else:
-                temp1, num1 = retrieve_record(num1, num2rcds,
-                                              priority=['TEAM-WINS', 'TEAM-PTS',
-                                                        'REB', 'AST', 'FTM', 'FGM', 'FG3M',
-                                                        'PTS_HALF-', 'PTS_QTR-'])
-                temp2, num2 = retrieve_record(num2, num2rcds,
-                                              priority=['TEAM-LOSSES', 'TEAM-PTS',
-                                                        'REB', 'AST', 'FTA', 'FGA', 'FG3A',
-                                                        'PTS_HALF-', 'PTS_QTR-'])
+                temp1, num1 = retrieve_record(num1, num2rcds, priority=['TEAM-WINS', 'TEAM-PTS',
+                                                                        'REB', 'AST', 'FTM', 'FGM', 'FG3M',
+                                                                        'PTS_HALF-', 'PTS_QTR-'])
+                temp2, num2 = retrieve_record(num2, num2rcds, priority=['TEAM-LOSSES', 'TEAM-PTS',
+                                                                        'REB', 'AST', 'FTA', 'FGA', 'FG3A',
+                                                                        'PTS_HALF-', 'PTS_QTR-'])
                 cp1, cp2 = None, None
                 # print("pattern 7 temp1 = {}".format(temp1))
                 # print("pattern 7 temp2 = {}".format(temp2))
@@ -624,6 +620,34 @@ def _any_other_player(sent):
             return True
     return False
 
+
+def _build_current_sent_players(sent, table):
+    current_sent_players = OrderedDict()
+    for word in sent.strip().split():
+        if word in table['Players']:
+            if word not in current_sent_players:
+                current_sent_players[word] = True
+    return current_sent_players
+
+
+def _build_current_sent_teams(sent, table, city2team):
+    current_sent_teams = OrderedDict()
+    for word in sent.strip().split():
+        # ------ resolve team name/city/alias ------ #
+        if word in table['Teams']:
+            team = word
+        elif word in city2team:
+            team = city2team[word]
+        elif word in alias2team:
+            team = alias2team[word]
+        else:
+            # continue until team word/city/alias is found
+            continue
+        if team not in current_sent_teams:
+            current_sent_teams[team] = True
+    return current_sent_teams
+
+
 def main(args, DATASET):
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
     # JSON_DIR = "../new_dataset/new_jsonl/"
@@ -761,26 +785,28 @@ def main(args, DATASET):
             # ------ process each sentence ------ #
             paragraph_plan = []
             paragraph_text = []
-            buffer = {'plan': None, 'text': None}
-            sentences = summary.strip().split(' . ')
+            buffer = {'plan': [], 'text': None, 'pointer': []}
+            sentences = [x.strip() for x in summary.strip().split(' . ')]
             word_pos = 0
             rcd_pos = 0
             pointers = []
             for cnt, sent in enumerate(sentences):
                 sent_count += 1
 
-                buffer, cat = dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds,
-                                                     table, city2team, alias2team, team_vocab, city_vocab)
+                buffer, cat = dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city2team, alias2team, team_vocab, city_vocab)
                 filter_types.setdefault(cat, 0)
                 filter_types[cat] += 1
                 # go to the next sentence if in the following categories --> buffer will be cleared next
-                if cat in ['player-inf', 'team-inf', 'schedule', 'skip']:
+                if cat != 'gogogo':
+                    if cat == 'player-coref':
+                        current_sent_players = _build_current_sent_players(sent, table)
+                    elif cat == 'team-coref':
+                        current_sent_teams = _build_current_sent_teams(sent, table, city2team)
                     continue
 
                 # print("\n\n\n\n *** sent # {} *** is : \n{}".format(cnt, sent))
                 pre_check_player = [x for x in sent.strip().split() if x in table['Players']]
-                pre_check_team = [x for x in sent.strip().split() if
-                                  x in table['Teams'] or x in city2team or x in alias2team]
+                pre_check_team = [x for x in sent.strip().split() if x in table['Teams'] or x in city2team or x in alias2team]
                 # print("pre_check for this sent is {}".format(pre_check_player+pre_check_team))
 
                 # ------ extract player/team this sentence is talking about ------ #
@@ -790,11 +816,7 @@ def main(args, DATASET):
 
                 if len(pre_check_player) > 0:
                     # only reset when new player is mentioned in this sent
-                    current_sent_players = OrderedDict()
-                    for word in sent.strip().split():
-                        if word in table['Players']:
-                            if word not in current_sent_players:
-                                current_sent_players[word] = True
+                    current_sent_players = _build_current_sent_players(sent, table)
                 else:
                     # print(" ** resolving player pronouns for {}**".format(sent))
                     player_found = False
@@ -816,21 +838,7 @@ def main(args, DATASET):
 
                 if len(pre_check_team) > 0:
                     # only reset when new team is mentioned in this sent
-                    current_sent_teams = OrderedDict()
-
-                    for word in sent.strip().split():
-                        # ------ resolve team name/city/alias ------ #
-                        if word in table['Teams']:
-                            team = word
-                        elif word in city2team:
-                            team = city2team[word]
-                        elif word in alias2team:
-                            team = alias2team[word]
-                        else:
-                            # continue until team word/city/alias is found
-                            continue
-                        if team not in current_sent_teams:
-                            current_sent_teams[team] = True
+                    current_sent_teams = _build_current_sent_teams(sent, table, city2team)
                 else:
                     # print(" ** resolving team pronouns **")
                     # using team from previous sentence
@@ -853,16 +861,20 @@ def main(args, DATASET):
                 for player in current_sent_players.keys():
                     player_records = table['Players'][player]
                     this_sent_records.extend(player_records)
+
+                to_delete = []
                 for team in current_sent_teams.keys():
                     # keep track which team is mentioned, the other one might still be useful
                     if team in this_game_teams:
                         this_game_teams.remove(team)
                     else:
                         print("Team not found: {}".format(team))
-                        del current_sent_teams[team]
+                        to_delete.append(team)
                         continue
                     team_records = table['Teams'][team]
                     this_sent_records.extend(team_records)
+                for i in to_delete:
+                    del current_sent_teams[i]
 
                 # only one team is mentioned, pass on the other team records in case needed
                 the_other_team_records = None
@@ -898,15 +910,16 @@ def main(args, DATASET):
                                        len(current_sent_teams) * RCD_PER_TEAM
                 cnt = sum([len(v) for k, v in num2rcds.items()]) + sum([len(v) for k, v in str2rcds.items()])
                 if not cnt == this_sent_total_rcds:
+                    print('\n')
                     print(cnt)
                     print(this_sent_total_rcds)
                     pdb.set_trace()
                 del this_sent_records
-                """
-                   this_game_teams: [team_names]
-                   num2rcds: {num: [records]}
-                   str2rcds: {player/team: [records]}
-                """
+                '''
+                this_game_teams: [team_names]
+                num2rcds: {num: [records]}
+                str2rcds: {player/team: [records]}
+                '''
 
                 # ------ labeling stats patterns ------ #
                 sent = mark_records(sent)
@@ -1012,10 +1025,14 @@ def main(args, DATASET):
                 # filter out sentences with nothing found for the player/team
                 if len(sentence_plan_numonly) > 0:
                     # include the previous buffer sentence
-                    if buffer['plan'] is not None and buffer['text'] is not None:
-                        print('adding contents in buffer = {}'.format(buffer))
+                    if len(buffer['plan'])>0 and buffer['text'] is not None:
+                        # print('adding contents in buffer = {}'.format(buffer))
                         paragraph_text.append(buffer['text'])
                         paragraph_plan.extend(buffer['plan'])
+                        for p in buffer['pointer']:
+                            pointers.append(','.join(map(str, [word_pos + p, rcd_pos])))
+                            rcd_pos += 1
+                        word_pos += len(buffer['text'].split())
 
                     paragraph_plan.extend(sentence_plan)
                     correct_sent = ' '.join(phrases)
@@ -1023,8 +1040,11 @@ def main(args, DATASET):
                     # increment by 1 for '.' at end of sentence
                     word_pos += 1
                 else:
+                    # reset both position counters
                     word_pos = starting_word_pos
                     empty_sent += 1
+                    if len(buffer['plan'])>0:
+                        empty_sent += 1
                     for _ in range(len(sentence_plan)):
                         # print("*** warning *** last pointer removed at word_pos = {}".format(word_pos))
                         pointers.pop(-1)
@@ -1032,25 +1052,28 @@ def main(args, DATASET):
                         # print("After popping: {}".format(pointers))
 
                 # NOTE: clear the buffer no matter what
-                buffer = {'plan': None, 'text': None}
+                buffer = {'plan': [], 'text': None, 'pointer': []}
 
             # take care of non-empty buffer when last sent is finished
-            if buffer['plan'] is not None and buffer['text'] is not None:
-                print('adding contents in buffer = {}'.format(buffer))
+            if len(buffer['plan'])>0 and buffer['text'] is not None:
+                # print('adding contents in buffer = {}'.format(buffer))
                 paragraph_text.append(buffer['text'])
                 paragraph_plan.extend(buffer['plan'])
+                for p in buffer['pointer']:
+                    pointers.append(','.join(map(str, [word_pos + p, rcd_pos])))
+                    rcd_pos += 1
+                word_pos += len(buffer['text'].split())
 
             paragraph_plan_ids = [rcd2idx[rcd] for rcd in paragraph_plan]
 
-            # if not len(paragraph_plan) == len(paragraph_plan_ids) == len(pointers):
-            #     print("\nI'm here")
-            #     print(paragraph_text)
-            #     print(len(paragraph_plan))
-            #     print(len(paragraph_plan_ids))
-            #     print(paragraph_plan)
-            #     print(len(pointers))
-            #     print(pointers)
-            #     pdb.set_trace()
+            if not len(paragraph_plan) == len(paragraph_plan_ids) == len(pointers):
+                print("\nparagraph_text: \n{}".format(paragraph_text))
+                print(len(paragraph_plan))
+                print(len(paragraph_plan_ids))
+                print("\nparagraph_plan: \n{}".format(paragraph_plan))
+                print("\npointers: {}\n".format(pointers))
+                print(len(pointers))
+                pdb.set_trace()
 
             paragraph_text = ' . '.join(paragraph_text)
             summ_len = len(paragraph_text.split())
@@ -1092,8 +1115,7 @@ def main(args, DATASET):
 
     print("{} sentences out of {} are discarded due to empty content plan".format(empty_sent, sent_count))
     print("{} sentences out of {} contains players not available from the table".format(player_not_found, sent_count))
-    print("{} samples are retained, {} empty content plans, {} are beyond length ranges"
-          .format(output_count, empty_plan, too_long_or_short))
+    print("{} samples are retained, {} empty content plans, {} are beyond length ranges".format(output_count, empty_plan, too_long_or_short))
     print("count_missing = {}".format(count_missing))
     print("dummy = {}".format(dummy))
 
@@ -1104,6 +1126,6 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for DATASET in ['train', 'valid', 'test']:
+    for DATASET in ['valid']: #['train', 'valid', 'test']:
         print("Extracting content plan from {}".format(DATASET))
         main(args, DATASET)

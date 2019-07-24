@@ -56,7 +56,7 @@ def _whats_next(inp):
         value, field, rcd_type, ha = rcd.split(DELIM)
         if rcd_type.startswith('TEAM-NEXT'):
             tmp[DELIM.join([rcd_type, ha])] = (value, field)
-            str2nextrcds[value] = rcd
+            str2nextrcds[value] = [rcd]
 
     upcomings = {
         'HOME': {'NAME': 'N/A', 'CITY': 'N/A', 'DAY': 'N/A'},
@@ -69,14 +69,6 @@ def _whats_next(inp):
     return upcomings, str2nextrcds
 
 
-def _get_schedule_plan(this, str2nextrcds):
-    plan = []
-    for tk in this.split():
-        if tk in str2nextrcds:
-            plan.append(str2nextrcds[tk])
-    return plan if len(plan)>0 else None
-
-
 def _contain_number(s):
     return any([x.isdigit() for x in s.strip().split()])
 
@@ -84,35 +76,41 @@ def _contain_number(s):
 def _talking_about_schecule(this, other_team, upcomings):
 
     # case 1: for regular seasons, different opponent
-    lkt = {w: True for w in this.strip().split()}
+    lkt = {w: True for w in this.split()}
     if len(other_team) > 0 and any([i in lkt for i in signals]) and any([i in lkt for i in days]):
         return True
 
     # case 2: for playoffs, sometimes same opponent
     else:
         days_lkt = dict.fromkeys(days)
-        schedule_info = [x for x in set(list(upcomings['HOME'].values()) + list(upcomings['AWAY'].values()))
-                         if not x in days_lkt]
+        schedule_info = [x for x in set(list(upcomings['HOME'].values()) + list(upcomings['AWAY'].values())) if not x in days_lkt]
         if len(other_team) == 0 and any([i in lkt for i in signals]) and any([i in lkt for i in schedule_info]):
             return True
 
     return False
 
+def _build_buffer(buffer, this, str2rcds):
+    buffer['text'] = this
+    for idx, tk in enumerate(this.split()):
+        if tk in str2rcds:
+            buffer['plan'].append(str2rcds[tk][0])
+            buffer['pointer'].append(idx)
+    return buffer
 
-def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds,
-                           table, city2team, alias2team, team_vocab, city_vocab):
+
+def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city2team, alias2team, team_vocab, city_vocab):
 
     # only allow one sentence in the buffer
     if buffer['text'] is not None:
         return buffer, 'gogogo'
 
     this = sentences[cnt]
-    this_players = [x for x in this.strip().split() if x in table['Players']]
-    this_teams = [x for x in this.strip().split() if x in table['Teams'] or x in city2team or x in alias2team]
+    this_players = [x for x in this.split() if x in table['Players']]
+    this_teams = [x for x in this.split() if x in table['Teams'] or x in city2team or x in alias2team]
 
     # discard sentences with unwanted topics, see above
     if any([re.search(x, this) is not None for x in filter_patterns]):
-        buffer = {'plan': None, 'text': None}
+        buffer = {'plan': [], 'text': None, 'pointer': []}
         return buffer, 'skip'
 
     # mask out number patterns not interested in
@@ -130,25 +128,20 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds,
         # case 1: a general statement on a group of players, followed by their individual performances
         next = sentences[cnt + 1] if cnt + 1 < len(sentences) else None
         if next is not None:
-            next_players = [x for x in next.strip().split() if x in table['Players']]
+            next_players = [x for x in next.split() if x in table['Players']]
 
-            if len(this_players) > 0 and \
-                    (any([x in next_players for x in this_players])
-                     or next.startswith('He')
-                     or next.startswith('They')):
-                print("next_players = {}".format(next_players))
-                print("this_players = {}".format(this_players))
-                buffer['text'] = this
-                buffer['plan'] = [allstr2rcds[p][0] for p in this_players]
-                cat = 'player-inf'
+            buffer = _build_buffer(buffer, this, allstr2rcds)
+            # print("next_players = {}".format(next_players))
+            # print("this_players = {}".format(this_players))
 
+            if len(this_players) > 0 and any([x in next_players for x in this_players]):
+                cat = 'player'
+            elif next.startswith('He') or next.startswith('They'):
+                cat = 'player-coref'
             elif len(this_teams) > 0 and next.startswith('They'):
-                buffer['text'] = this
-                buffer['plan'] = [allstr2rcds[p][0] for p in this_teams]
-                cat = 'team-inf'
+                cat = 'team-coref'
             else:
-                if buffer['text'] is not None:
-                    pdb.set_trace()
+                buffer = {'plan': [], 'text': None, 'pointer': []}
                 cat = 'skip'
 
         else:
@@ -166,19 +159,18 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds,
                     break
 
             if _talking_about_schecule(this, other_team, upcomings):
-                buffer['text'] = this
-                buffer['plan'] = _get_schedule_plan(this, str2nextrcds)
-                if buffer['plan'] is not None:
-                    print(buffer)
-                    print("str2nextrcds = {}".format(str2nextrcds))
-                    print("next = {}".format(next))
+                buffer = _build_buffer(buffer, this, str2nextrcds)
+                # if buffer['plan'] is not None:
+                #     print(buffer)
+                #     print("str2nextrcds = {}".format(str2nextrcds))
+                #     print("next = {}".format(next))
                     # pdb.set_trace()
                 cat = 'schedule'
             else:
                 cat = 'skip'
 
     else:
-        # TODO: case 3: combined performance statistics, hard to capture, left to content plan to decide
+        # case 3: combined performance statistics, hard to capture, left to content plan to decide
         # if 'combin' in this:
         #     print(this)
         cat = 'gogogo'

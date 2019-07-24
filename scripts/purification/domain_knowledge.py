@@ -38,8 +38,8 @@ class Domain_Knowledge:
             'The_Greek_Freak': 'Giannis_Antetokounmpo',
             'Melo': 'Carmelo_Anthony',
             'KD': 'Kevin_Durant',
-
         }
+
         self.prons = dict.fromkeys(
             ["he", "He", "him", "Him", "his", "His", "they", "They", "them", "Them", "their", "Their", "team"], True)
 
