@@ -20,7 +20,7 @@ def main(args, DATASET):
         "src_%s.norm.trim.txt" % DATASET,
         "%s_content_plan_ids.txt" % DATASET,
         "%s_ptrs.txt" % DATASET,
-        "tgt_%s.norm.filter.mwe.trim.txt" % DATASET,
+        "tgt_%s.norm.mwe.trim.txt" % DATASET,
         "%s.trim.json" % DATASET
     ]
 
@@ -29,7 +29,7 @@ def main(args, DATASET):
     output_files = [
         "src_%s.norm.trim.ncp.txt" % DATASET,
         "%s_content_plan_ids.ncp.txt" % DATASET,
-        "tgt_%s.norm.filter.tk.trim.txt" % DATASET,
+        "tgt_%s.norm.tk.trim.txt" % DATASET,
         "%s.trim.ws.json" % DATASET
     ]
 
@@ -76,7 +76,6 @@ def main(args, DATASET):
                 n.replace('.', '')
                 first_names[idx] = n
 
-            # for i in range(18):
             tmp['box_score']['<blank>'] = {str(k): '<blank>' for k in range(len(tmp['box_score']['FIRST_NAME']))}
 
             tmp['box_score']['FIRST_NAME'] = first_names

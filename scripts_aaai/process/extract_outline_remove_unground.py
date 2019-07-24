@@ -674,8 +674,8 @@ def main(args, DATASET):
         "%s_content_plan_tks.txt" % DATASET,
         "%s_content_plan_ids.txt" % DATASET,
         "%s_ptrs.txt" % DATASET,
-        "tgt_%s.norm.filter.mwe.trim.txt" % DATASET,
-        "tgt_%s.norm.filter.mwe.trim.full.txt" % DATASET,
+        "tgt_%s.norm.mwe.trim.txt" % DATASET,
+        "tgt_%s.norm.mwe.trim.full.txt" % DATASET,
         "src_%s.norm.trim.txt" % DATASET
     ]
 
@@ -1126,6 +1126,6 @@ if __name__ == "__main__":
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 
-    for DATASET in ['valid']: #['train', 'valid', 'test']:
+    for DATASET in ['train', 'valid', 'test']:
         print("Extracting content plan from {}".format(DATASET))
         main(args, DATASET)

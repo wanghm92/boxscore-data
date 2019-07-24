@@ -557,32 +557,6 @@ def main(js, src, tgt, src_out, json_out):
         for s in output:
             fout.write("{}\n".format(s))
 
-'''
-# not needed anymore
-def _get_homeaway_lkt():
-
-    homeaway_lkt = {}
-
-    for DATASET in ['train', 'valid', 'test']:
-        js = os.path.join("../new_dataset/new_jsonl", "%s.jsonl" % DATASET)
-        with jsonlines.open(js, 'r') as fin_js:
-
-            tables = [i for i in fin_js.iter(type=dict, skip_invalid=True)]
-
-            for t in tables:
-                home = t['home_name']
-                away = t['vis_name']
-                day = t['day']
-                entry = {
-                    home: 'home',
-                    away: 'away'
-                }
-                homeaway_lkt['{}-{}-{}'.format(day, home, away)] = entry
-                homeaway_lkt['{}-{}-{}'.format(day, away, home)] = entry
-
-    return homeaway_lkt
-'''
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
     parser.add_argument('--dir', type=str, default='../new_dataset/',
@@ -603,7 +577,7 @@ if __name__ == "__main__":
 
         input_files = [
             "src_%s.norm.tk.txt" % DATASET,
-            "tgt_%s.norm.filter.mwe.txt" % DATASET,
+            "tgt_%s.norm.mwe.txt" % DATASET,
         ]
 
         src, tgt = [os.path.join(INP_DIR, f) for f in input_files]
