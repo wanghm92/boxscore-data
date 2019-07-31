@@ -33,11 +33,11 @@ arenas = {
     "American Airlines Center": "American_Airlines_Center",
     "American* *Airlines Arena": "American_Airlines_Arena",
     "Amway Center": "Amway_Center",
-    "AT \& T Center": "AT_&_T_Center",
+    "AT \& T (?:Center|Arena)": "AT_&_T_Center",
     "Air Canada (?:Center|Centre)": "Air_Canada_Centre",
     "Bankers Life Fieldhouse": "Bankers_Life_Fieldhouse",
     "(?:Barclays|Barclay 's) Center": "Barclays_Center",
-    "Chesapeake (?:Energy )Arena": "Chesapeake_Energy_Arena",
+    "Chesape*ake (?:Energy )Arena": "Chesapeake_Energy_Arena",
     "Energy *Solutions Arena": "EnergySolutions_Arena",
     "Fed E(?:x|X) Forum Arena|FedExForum Arena": "Fed_Ex_Forum_Arena",
     "FedEx Forum": 'Fed_Ex_Forum_Arena',
@@ -47,13 +47,13 @@ arenas = {
     "Moda Center": "Moda_Center",
     "(?:Oracle|ORACLE) Arena": "Oracle_Arena",
     "Pepsi Center": "Pepsi_Center",
-    "Smoothie King Center": "Smoothie_King_Center",
+    "Smoothie King (?:Center|Arena)": "Smoothie_King_Center",
     "Spectrum (?:Center|Arena)": "Spectrum_Center",
     "Staples Center": "Staples_Center",
     "Sleep Train Arena": "Sleep_Train_Arena",
-    "Talking Stick (?:Resort )*Arena": "Talking_Stick_Resort_Arena",
+    "Talking St*ick (?:Resort )*Arena": "Talking_Stick_Resort_Arena",
     "Target Center": "Target_Center",
-    "TD Center|TD Garden(?: Arena)": "TD_Garden",
+    "TD Center|TD Garden(?: Arena)|TD Bank Arena": "TD_Garden",
     "Toyota Center|Honda Center|atToyota Center": "Toyota_Center",
     "(?:Time Warner Cable|TWC) Arena": "Time_Warner_Cable_Arena",
     "United Center": "United_Center",
@@ -66,6 +66,11 @@ arenas = {
     "BMO Harris Bradley Center|Bradley Center": "BMO_Harris_Bradley_Center",
     "US Airways Center|U\.S\. Airways Center": "US_Airways_Center",
     "Vivint Smart Home Arena": "Vivint_Smart_Home_Arena",
+    "Capit(?:a|o)l One Arena|Captial One Arena": "Capital_One_Arena",
+    "State Farm Arena": "State_Farm_Arena",
+    "O2 Arena (?:in|on) London": "O2_Arena_in_London",
+    "Scotia(?:b| B)ank Arena": "Scotiabank_Arena",
+    "Little C(?:ae|ea)sars* ('s )*Arena": "Little_Caesars_Arena",
 }
 
 mwes = {
@@ -287,6 +292,7 @@ post_fixes = OrderedDict({
     '...': '.',
     '..': ' .',
     'Manu Ginobli': 'Manu_Ginobili',
+    ' fives ': ' 5 '
 })
 
 p1 = re.compile("\d+\.\S+|\S+\.\d+")

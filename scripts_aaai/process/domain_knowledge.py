@@ -85,7 +85,12 @@ class Domain_Knowledge:
             'United_Center',
             'Verizon_Center',
             'Vivint_Smart_Home_Arena',
-            'Wells_Fargo_Center'
+            'Wells_Fargo_Center',
+            'Capital_One_Arena',
+            'State_Farm_Arena',
+            'O2_Arena_in_London',
+            'Scotiabank_Arena',
+            'Little_Caesars_Arena'
         ]
 
         # Jazz: EnergySolutions_Arena renamed as Vivint_Smart_Home_Arena in 2015
@@ -100,7 +105,7 @@ class Domain_Knowledge:
             'Celtics': ['TD_Garden'],
             'Clippers': ['Staples_Center'],
             'Grizzlies': ['Fed_Ex_Forum_Arena'],
-            'Hawks': ['Philips_Arena'],
+            'Hawks': ['State_Farm_Arena', 'Philips_Arena'],
             'Heat': ['American_Airlines_Arena'],
             'Hornets': ['Spectrum_Center'],
             'Jazz': ['Vivint_Smart_Home_Arena', 'EnergySolutions_Arena'],
@@ -113,8 +118,8 @@ class Domain_Knowledge:
             'Nuggets': ['Pepsi_Center'],
             'Pacers': ['Bankers_Life_Fieldhouse'],
             'Pelicans': ['Smoothie_King_Center'],
-            'Pistons': ['The_Palace_of_Auburn_Hills'],
-            'Raptors': ['Air_Canada_Center'],
+            'Pistons': ['Little_Caesars_Arena', 'The_Palace_of_Auburn_Hills'],
+            'Raptors': ['Scotiabank_Arena', 'Air_Canada_Center'],
             'Rockets': ['Toyota_Center'],
             'Spurs': ['AT_&_T_Center'],
             'Suns': ['Talking_Stick_Resort_Arena', 'US_Airways_Center'],
@@ -122,7 +127,7 @@ class Domain_Knowledge:
             'Timberwolves': ['Target_Center'],
             'Trail_Blazers': ['Moda_Center'],
             'Warriors': ['Oracle_Arena'],
-            'Wizards': ['Verizon_Center']
+            'Wizards': ['Capital_One_Arena', 'Verizon_Center']
         }
 
         self.line_keys_ext = [
