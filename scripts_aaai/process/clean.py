@@ -30,7 +30,7 @@ double_word_team_names = {
 double_word_team_names = OrderedDict(double_word_team_names)
 
 arenas = {
-    "American Airlines Center": "American_Airlines_Center",
+    "American*s* Airlines* Center": "American_Airlines_Center",
     "American* *Airlines Arena": "American_Airlines_Arena",
     "Amway Center": "Amway_Center",
     "AT \& T (?:Center|Arena)": "AT_&_T_Center",
@@ -40,16 +40,16 @@ arenas = {
     "Chesape*ake (?:Energy )Arena": "Chesapeake_Energy_Arena",
     "Energy *Solutions Arena": "EnergySolutions_Arena",
     "Fed E(?:x|X) Forum Arena|FedExForum Arena": "Fed_Ex_Forum_Arena",
-    "FedEx Forum": 'Fed_Ex_Forum_Arena',
-    "Golden 1 Center|Golden One Center": "Golden_One_Center",
+    "FedEx (?:Center|Forum)": 'Fed_Ex_Forum_Arena',
+    "Golden 1 Center|Golden One Center|Golden1 Center|Golden Once Center": "Golden_One_Center",
     "Madison Square Garden": "Madison_Square_Garden",
     "Mexico City Arena": "Mexico_City_Arena",
-    "Moda Center": "Moda_Center",
+    "Moda* Center": "Moda_Center",
     "(?:Oracle|ORACLE) Arena": "Oracle_Arena",
     "Pepsi Center": "Pepsi_Center",
     "Smoothie King (?:Center|Arena)": "Smoothie_King_Center",
     "Spectrum (?:Center|Arena)": "Spectrum_Center",
-    "Staples Center": "Staples_Center",
+    "(?:S|s)taples* Center": "Staples_Center",
     "Sleep Train Arena": "Sleep_Train_Arena",
     "Talking St*ick (?:Resort )*Arena": "Talking_Stick_Resort_Arena",
     "Target Center": "Target_Center",
@@ -62,7 +62,7 @@ arenas = {
     "Verizon Center": "Verizon_Center",
     "(?:Quicken|Quciken) Loans (?:A|a)rena": "Quicken_Loans_Arena",
     "The Palace of Auburn Hills": "The_Palace_of_Auburn_Hills",
-    "Phil+ips Arena": "Philips_Arena",
+    "Phil+ips (?:Center|Arena)": "Philips_Arena",
     "BMO Harris Bradley Center|Bradley Center": "BMO_Harris_Bradley_Center",
     "US Airways Center|U\.S\. Airways Center": "US_Airways_Center",
     "Vivint Smart Home Arena": "Vivint_Smart_Home_Arena",
@@ -292,7 +292,8 @@ post_fixes = OrderedDict({
     '...': '.',
     '..': ' .',
     'Manu Ginobli': 'Manu_Ginobili',
-    ' fives ': ' 5 '
+    ' fives ': ' 5 ',
+    '7 \' 4 inch Center': 'center'
 })
 
 p1 = re.compile("\d+\.\S+|\S+\.\d+")

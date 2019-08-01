@@ -90,7 +90,8 @@ class Domain_Knowledge:
             'State_Farm_Arena',
             'O2_Arena_in_London',
             'Scotiabank_Arena',
-            'Little_Caesars_Arena'
+            'Little_Caesars_Arena',
+            'Moda_Center',
         ]
 
         # Jazz: EnergySolutions_Arena renamed as Vivint_Smart_Home_Arena in 2015
