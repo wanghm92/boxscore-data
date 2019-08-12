@@ -654,9 +654,9 @@ def main(args, DATASET):
     # js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
 
     input_files = [
-        "%s.ext.jsonl" % DATASET,
-        "src_%s.norm.ext.txt" % DATASET,
-        "tgt_%s.norm.mwe.txt" % DATASET,
+        "%s.ext.jsonl" % DATASET,         # from add feat
+        "src_%s.norm.ext.txt" % DATASET,  # from add feat
+        "tgt_%s.norm.mwe.txt" % DATASET,  # from clean
         # "tgt_%s.norm.filter.mwe.txt" % DATASET
     ]
 
@@ -936,7 +936,7 @@ def main(args, DATASET):
                 sentence_plan = []
                 sentence_plan_numonly = []
                 starting_word_pos = word_pos
-                # NOTE: applying lots of heuristics
+                #! NOTE: applying lots of heuristics
                 for mwe in sent.strip().split():
                     # print('-'*10 + 'new mwe : {} ({}) '.format(mwe, word_pos) + '-'*10)
                     # include the player/team/city name (alias not available before feature extension)

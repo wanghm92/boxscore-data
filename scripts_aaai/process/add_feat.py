@@ -49,7 +49,7 @@ def get_arena(records, summary, tbl):
         if hometeam and awayteam:
             break
 
-    # if not mentioned in the 1st sentence, look it up instead
+    #! NOTE: if not mentioned in the 1st sentence, look it up instead (an arbitrary decision to assume the summary to be right first)
     if this_arena is None:
         this_arena = team2arenas[hometeam][_get_arena_old_new(hometeam, year)]
 
@@ -303,7 +303,7 @@ This part augment the input table with extra numeric features: number type and/o
 # ----------------------- #
 """
     Player features:
-    1. [done]player vs team feature 
+    1. [done]player vs team feature
     2. [done]start vs bench: simply convert to START VS BENCH ???
     3. [done]single/double/triple digits/percentages/others
     3. [done]double-double/ triple-double
@@ -403,7 +403,7 @@ def player_features(records, add_dd=False):
         for player, stats in player2pts.items():
             cell = check_double_triple(stats)
             double_feat = [cell, player, 'DOUBLE_TRIPLE', stats['ha'], 'OTHERS']
-    
+
             output.append(DELIM.join([str(x) for x in double_feat]))
 
     return output
@@ -473,9 +473,9 @@ def get_next_games(records, tbl):
 
         for entry, suffix in zip([next_name, next_city, next_day, next_ha], ['NAME', 'CITY', 'DAY', 'HA']):
             records.append(DELIM.join([entry,
-                                       '_'.join(this_name.split()),
-                                       'TEAM-NEXT_{}'.format(suffix),
-                                       prefix.upper()]))
+                                        '_'.join(this_name.split()),
+                                        'TEAM-NEXT_{}'.format(suffix),
+                                        prefix.upper()]))
 
     return records
 
