@@ -10,8 +10,8 @@ sys.path.insert(0, '../purification/')
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 
-prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
-assert len(prefix.split()) == 4
+ncp_prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
+assert len(ncp_prefix.split()) == 4
 
 def main(args, DATASET):
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
@@ -59,7 +59,7 @@ def main(args, DATASET):
         for s, c, p, t in tqdm(zip(source, content_plans, pointers, tables)):
             assert len(c.split()) == len(p.split())
 
-            o = ' '.join([prefix, s])
+            o = ' '.join([ncp_prefix, s])
             fout_src.write("{}\n".format(o))
 
             cp_plus = [str(int(x) + 4) for x in c.split()]

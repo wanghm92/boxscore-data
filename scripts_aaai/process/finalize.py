@@ -12,8 +12,8 @@ from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 DELIM = "￨"
 
-prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
-assert len(prefix.split()) == 4
+ncp_prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
+assert len(ncp_prefix.split()) == 4
 
 def _to_reserve(rcd):
     return rcd.split(DELIM)[2] == 'START_POSITION' or (rcd.split(DELIM)[0] != 'N/A' and rcd.split(DELIM)[1] != 'N/A')
@@ -82,7 +82,7 @@ def main(args, DATASET):
 
             # --- processing input records --- #
             # add 4 special tokens in front for NCP (as they designed)
-            ncp_src_full = ' '.join([prefix, src_full])
+            ncp_src_full = ' '.join([ncp_prefix, src_full])
             fout_src_ncp_full.write("{}\n".format(ncp_src_full))
 
             # remove N/A records from src
@@ -91,7 +91,7 @@ def main(args, DATASET):
             fout_src_nona.write("{}\n".format(' '.join(src_nona)))
 
             # add 4 special tokens in front of non-N/A records for NCP
-            ncp_src_nana = ' '.join([prefix, ' '.join(src_nona)])
+            ncp_src_nana = ' '.join([ncp_prefix, ' '.join(src_nona)])
             fout_src_ncp_nona.write("{}\n".format(ncp_src_nana))
 
             # --- processing content plans --- #

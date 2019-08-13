@@ -16,6 +16,7 @@ UNK_WORD = '<unk>'
 BOS_WORD = '<s>'
 EOS_WORD = '</s>'
 ncp_prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
+assert len(ncp_prefix.split()) == 4
 
 # ------------------------------- #
 # --- very important patterns --- #
