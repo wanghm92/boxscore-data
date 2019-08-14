@@ -3,7 +3,7 @@ import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil, jsonlines
 from tqdm import tqdm
 from pprint import pprint
 from collections import Counter, OrderedDict
-sys.path.insert(0, '../purification/')
+sys.path.insert(0, '../process/')
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 from pyxdameraulevenshtein import normalized_damerau_levenshtein_distance
@@ -16,6 +16,9 @@ UNK_WORD = '<unk>'
 BOS_WORD = '<s>'
 EOS_WORD = '</s>'
 ncp_prefix = "<unk>￨<blank>￨<blank>￨<blank> <blank>￨<blank>￨<blank>￨<blank> <s>￨<blank>￨<blank>￨<blank> </s>￨<blank>￨<blank>￨<blank>"
+assert len(ncp_prefix.split()) == 4
+
+# TODO: add distance information to decide who to assign the number record
 
 # ------------------------------- #
 # --- very important patterns --- #
@@ -423,6 +426,7 @@ def get_records(phrase, num2rcds, the_other_team_records, entity, rcd_type, ha, 
                                 num2rcds[k] = v
                             else:
                                 num2rcds[k].extend(v)
+                        # TODO: Change this to pass in pairs of priority types instead of checking afterwards
                         p1 = ['TEAM-WINS', 'TEAM-PTS', 'REB', 'AST', 'FTM', 'FGM', 'FG3M', 'PTS_HALF-', 'PTS_QTR-']
                         p2 = ['TEAM-LOSSES', 'TEAM-PTS', 'REB', 'AST', 'FTA', 'FGA', 'FG3A', 'PTS_HALF-', 'PTS_QTR-']
                         temp1, num1 = retrieve_record(num1, num2rcds, priority=p1)
@@ -560,7 +564,7 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
 # -------------- #
 RCD_PER_PLAYER = 21
 NUM_PLAYERS = 26
-RCD_PER_TEAM = 40
+RCD_PER_TEAM = 44
 NUM_TEAMS = 2
 
 alias2team = knowledge_container.alias2team
@@ -610,7 +614,7 @@ def main(args):
             planner_output = fin.read().strip().split('\n')
 
     input_files = [
-        "src_%s.norm.trim.ncp.txt" % args.dataset,
+        "src_%s.norm.trim.ncp.full.txt" % args.dataset,
         "%s_content_plan_tks.txt" % args.dataset,
         "%s.trim.json" % args.dataset,
 
@@ -642,7 +646,7 @@ def main(args):
 
         if not len(inputs) == len(gold_outlines) == len(hypotheses) == len(original_tables):
             print("# Input tables = {}; # Gold Content Plans = {}; # Test Summaries = {} # Tables = {}"
-                  .format(len(inputs), len(gold_outlines), len(hypotheses), len(original_tables)))
+                    .format(len(inputs), len(gold_outlines), len(hypotheses), len(original_tables)))
             raise RuntimeError("Inputs must have the same number of samples (1/line, aligned)")
         else:
             if planner_output is not None:
@@ -687,7 +691,7 @@ def main(args):
             for cnt, sent in enumerate(sentences):
                 pre_check_player = [x for x in sent.strip().split() if x in table['Players']]
                 pre_check_team = [x for x in sent.strip().split() if
-                                  x in table['Teams'] or x in city2team or x in alias2team]
+                                    x in table['Teams'] or x in city2team or x in alias2team]
 
                 # ------ extract player/team this sentence is talking about ------ #
                 this_game_teams = list(table['Teams'].keys())
@@ -752,7 +756,8 @@ def main(args):
                     # keep track which team is mentioned, the other one might still be useful
                     if team in this_game_teams:
                         this_game_teams.remove(team)
-                    team_records = table['Teams'][team]
+                    # TODO: this is a workaround for now
+                    team_records = table['Teams'].get(team, [])
                     this_sent_records.extend(team_records)
 
                 # only one team is mentioned, pass on the other team records in case needed
@@ -856,14 +861,14 @@ def main(args):
                 stage1.append('.')
 
             out_tks = "Gold Summary .".split() + ["\n"] \
-                      + original_summary + ["\n"] \
-                      + otl_numonly_tks + ["\n"] \
-                      + "System Summary .".split() + ["\n"] \
-                      + hypo.strip().split() + ["\n"] \
-                      + "Planned Outline .".split() + ["\n"] \
-                      + stage1 + ["\n\n"] \
-                      + "Extracted Outline .".split() + ["\n"] \
-                      + paragraph_plan_numonly_tks
+                        + original_summary + ["\n"] \
+                        + otl_numonly_tks + ["\n"] \
+                        + "System Summary .".split() + ["\n"] \
+                        + hypo.strip().split() + ["\n"] \
+                        + "Planned Outline .".split() + ["\n"] \
+                        + stage1 + ["\n\n"] \
+                        + "Extracted Outline .".split() + ["\n"] \
+                        + paragraph_plan_numonly_tks
             tbl['summary'] = out_tks
 
             # out_tables.append(tbl)
@@ -884,7 +889,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--path', type=str, default='/home/hongmin_wang/table2text_nlg/harvardnlp/boxscore-data/scripts/new_dataset/new_extend',
+    parser.add_argument('--path', type=str, required=True,
                         help='directory of src/tgt_train/valid/test.txt files')
     parser.add_argument('--dataset', type=str, default='valid', choices=['valid', 'test'])
     parser.add_argument('--hypo', type=str, required=True,
