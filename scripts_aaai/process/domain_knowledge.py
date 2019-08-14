@@ -6,13 +6,13 @@ class Domain_Knowledge:
     def __init__(self):
 
         self.all_nba_teams = ['Atlanta Hawks', 'Boston Celtics', 'Brooklyn Nets', 'Charlotte Hornets',
-                             'Chicago Bulls', 'Cleveland Cavaliers', 'Detroit Pistons', 'Indiana Pacers',
-                             'Miami Heat', 'Milwaukee Bucks', 'New York Knicks', 'Orlando Magic',
-                             'Philadelphia 76ers', 'Toronto Raptors', 'Washington Wizards', 'Dallas Mavericks',
-                             'Denver Nuggets', 'Golden State Warriors', 'Houston Rockets', 'Los Angeles Clippers',
-                             'Los Angeles Lakers', 'Memphis Grizzlies', 'Minnesota Timberwolves', 'New Orleans Pelicans',
-                             'Oklahoma City Thunder', 'Phoenix Suns', 'Portland Trail Blazers', 'Sacramento Kings',
-                             'San Antonio Spurs', 'Utah Jazz']
+                                'Chicago Bulls', 'Cleveland Cavaliers', 'Detroit Pistons', 'Indiana Pacers',
+                                'Miami Heat', 'Milwaukee Bucks', 'New York Knicks', 'Orlando Magic',
+                                'Philadelphia 76ers', 'Toronto Raptors', 'Washington Wizards', 'Dallas Mavericks',
+                                'Denver Nuggets', 'Golden State Warriors', 'Houston Rockets', 'Los Angeles Clippers',
+                                'Los Angeles Lakers', 'Memphis Grizzlies', 'Minnesota Timberwolves', 'New Orleans Pelicans',
+                                'Oklahoma City Thunder', 'Phoenix Suns', 'Portland Trail Blazers', 'Sacramento Kings',
+                                'San Antonio Spurs', 'Utah Jazz']
 
         self.two_word_cities = ['New York', 'Golden State', 'Los Angeles', 'New Orleans', 'Oklahoma City', 'San Antonio']
 

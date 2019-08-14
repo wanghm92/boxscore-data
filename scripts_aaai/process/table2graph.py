@@ -154,29 +154,30 @@ def _get_team_player(ha2player, ha2team, node2idx):
             edges[(player_id, team_id)] = label
     return edges
 
-DATA = 'test'
 BASE="/mnt/cephfs2/nlp/hongmin.wang/table2text/boxscore-data"
-fname = "{}/scripts_aaai/new_dataset/new_ncpcc/{}/src_{}.norm.trim.ncp.full.txt".format(BASE, DATA, DATA)
-fout = "{}/scripts_aaai/new_dataset/new_ncpcc/{}/edges_{}.ncp.jsonl".format(BASE, DATA, DATA)
+for DATA in ['train', 'valid', 'test']:
 
-with io.open(fname, 'r', encoding='utf-8') as fin, jsonlines.open(fout, 'w') as writer:
+    fname = "{}/scripts_aaai/new_dataset/new_ncpcc/{}/src_{}.norm.trim.ncp.full.txt".format(BASE, DATA, DATA)
+    fout = "{}/scripts_aaai/new_dataset/new_ncpcc/{}/edges_{}.ncp.jsonl".format(BASE, DATA, DATA)
 
-    inputs = fin.read().strip().split('\n')
-    for sample in tqdm(inputs):
-        temp = {}
-        records = sample.strip().split()
-        node2idx, entity2nodes, player_pairs, ha2player, ha2team = _get_lookups(records)
-        home = ha2team['HOME'].split(DELIM)[0]
-        away = ha2team['AWAY'].split(DELIM)[0]
-        team_pair = [(home, away)]
-        for pair_list, key_list in zip([player_pairs['HOME'], player_pairs['AWAY'], team_pair], [box_numkeys, box_numkeys, line_numkeys]):
-            for left, right in pair_list:
-                temp.update(_get_pairwise(left, right, key_list, entity2nodes, node2idx))
+    with io.open(fname, 'r', encoding='utf-8') as fin, jsonlines.open(fout, 'w') as writer:
 
-        tmp = _get_team_player(ha2player, ha2team, node2idx)
-        temp.update(tmp)
-        combo = {}
-        for (left, right), lab in temp.items():
-            key = '{},{}'.format(left, right)
-            combo[key] = lab
-        writer.write(combo)
+        inputs = fin.read().strip().split('\n')
+        for sample in tqdm(inputs):
+            temp = {}
+            records = sample.strip().split()
+            node2idx, entity2nodes, player_pairs, ha2player, ha2team = _get_lookups(records)
+            home = ha2team['HOME'].split(DELIM)[0]
+            away = ha2team['AWAY'].split(DELIM)[0]
+            team_pair = [(home, away)]
+            for pair_list, key_list in zip([player_pairs['HOME'], player_pairs['AWAY'], team_pair], [box_numkeys, box_numkeys, line_numkeys]):
+                for left, right in pair_list:
+                    temp.update(_get_pairwise(left, right, key_list, entity2nodes, node2idx))
+
+            tmp = _get_team_player(ha2player, ha2team, node2idx)
+            temp.update(tmp)
+            combo = {}
+            for (left, right), lab in temp.items():
+                key = '{},{}'.format(left, right)
+                combo[key] = lab
+            writer.write(combo)
