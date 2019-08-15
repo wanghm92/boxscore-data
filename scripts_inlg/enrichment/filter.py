@@ -102,7 +102,7 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city
 
     # only allow one sentence in the buffer
     if buffer['text'] is not None:
-        return buffer, 'gogogo'
+        return buffer, 'go_check_content_plan'
 
     this = sentences[cnt]
     this_players = [x for x in this.split() if x in table['Players']]
@@ -115,24 +115,22 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city
 
     # mask out number patterns not interested in
     for p in num_patterns:
-        this = re.sub(p, ' dummystring ', this)
+        this_masked = re.sub(p, ' dummystring ', this)
 
     oneteam = re.compile('(?:{}) \( [0-9]+ - [0-9]+ \)'.format('|'.join(this_teams)))
-    if len(re.findall(oneteam, this)) == 1:
-        this = re.sub(oneteam, ' dummystring ', this)
+    if len(re.findall(oneteam, this_masked)) == 1:
+        this_masked = re.sub(oneteam, ' dummystring ', this_masked)
 
     upcomings, str2nextrcds = _whats_next(inp)
 
     # no-number sentences
-    if not _contain_number(this):
+    if not _contain_number(this_masked):
         # case 1: a general statement on a group of players, followed by their individual performances
         next = sentences[cnt + 1] if cnt + 1 < len(sentences) else None
         if next is not None:
             next_players = [x for x in next.split() if x in table['Players']]
 
             buffer = _build_buffer(buffer, this, allstr2rcds)
-            # print("next_players = {}".format(next_players))
-            # print("this_players = {}".format(this_players))
 
             if len(this_players) > 0 and any([x in next_players for x in this_players]):
                 cat = 'player'
@@ -160,22 +158,13 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city
 
             if _talking_about_schecule(this, other_team, upcomings):
                 buffer = _build_buffer(buffer, this, str2nextrcds)
-                # if buffer['plan'] is not None:
-                #     print(buffer)
-                #     print("str2nextrcds = {}".format(str2nextrcds))
-                #     print("next = {}".format(next))
-                    # pdb.set_trace()
                 cat = 'schedule'
             else:
                 cat = 'skip'
 
     else:
         # case 3: combined performance statistics, hard to capture, left to content plan to decide
-        # if 'combin' in this:
-        #     print(this)
-        cat = 'gogogo'
-    # if buffer['text'] is not None:
-    #     pdb.set_trace()
+        cat = 'go_check_content_plan'
     return buffer, cat
 
 

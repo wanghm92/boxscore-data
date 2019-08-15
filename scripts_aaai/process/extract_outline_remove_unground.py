@@ -15,6 +15,7 @@ Taking care of extra line score items:
 
 import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil
 from tqdm import tqdm
+from pprint import pprint
 from collections import Counter, OrderedDict
 sys.path.insert(0, os.path.abspath('../purification'))
 print(sys.path)
@@ -733,7 +734,7 @@ def main(args, DATASET):
             current_sent_players = OrderedDict()
             current_sent_teams = OrderedDict()
 
-            # ------ get record to index lookup ------ #
+            # ------ get record to index and str to record lookup ------ #
             rcd2idx = {}
 
             if not len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS:
@@ -778,10 +779,7 @@ def main(args, DATASET):
                         table['Players'].update({field: [rcd]})
                     else:
                         table['Players'][field].append(rcd)
-            # print(single_number2rcds)
-            # pdb.set_trace()
 
-                        # pprint(table)
             # ------ process each sentence ------ #
             paragraph_plan = []
             paragraph_text = []
@@ -796,8 +794,9 @@ def main(args, DATASET):
                 buffer, cat = dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city2team, alias2team, team_vocab, city_vocab)
                 filter_types.setdefault(cat, 0)
                 filter_types[cat] += 1
-                # go to the next sentence if in the following categories --> buffer will be cleared next
-                if cat != 'gogogo':
+
+                if cat != 'go_check_content_plan':
+                    # go to the next sentence if in the following categories --> buffer will be processed in next iteration
                     if cat == 'player-coref':
                         current_sent_players = _build_current_sent_players(sent, table)
                     elif cat == 'team-coref':
@@ -826,21 +825,17 @@ def main(args, DATASET):
 
                     if not player_found:
                         # neither a new player is found nor a pronoun is referring to a previous player
-                        # print('player_found = {} according to {}'.format(player_found, word))
                         current_sent_players = OrderedDict()
 
                     elif _any_other_player(sent):
                         # print(" **{}** is describing a player not available in the table".format(sent))
                         current_sent_players = OrderedDict()
                         player_not_found += 1
-                        # else:
-                        #     print(" ** using records from previous sentence {}** ".format())
 
                 if len(pre_check_team) > 0:
                     # only reset when new team is mentioned in this sent
                     current_sent_teams = _build_current_sent_teams(sent, table, city2team)
                 else:
-                    # print(" ** resolving team pronouns **")
                     # using team from previous sentence
                     team_found = False
                     for word in sent.strip().split():
@@ -848,15 +843,7 @@ def main(args, DATASET):
                             team_found = True
                     if not team_found:
                         # neither a new team is found nor a pronoun is referring to a previous team
-                        # print('team_found = {}'.format(team_found))
                         current_sent_teams = OrderedDict()
-                        # else:
-                        # print(" ** using records from previous sentence ** ")
-
-                        # if len(pre_check_player) + len(pre_check_team) == 0 and not player_found and not team_found:
-                        # print("*** WARNING *** No idea what this sentence is about: {}".format(sent))
-                        # print("current_sent_players: {}".format(current_sent_players))
-                        # print("current_sent_teams: {}".format(current_sent_teams))
 
                 for player in current_sent_players.keys():
                     player_records = table['Players'][player]
@@ -923,14 +910,6 @@ def main(args, DATASET):
 
                 # ------ labeling stats patterns ------ #
                 sent = mark_records(sent)
-
-                # print("this_game_teams = {}".format(this_game_teams))
-                # print('*** num2rcds ***')
-                # pprint(num2rcds)
-                # print('*** str2rcds ***')
-                # pprint(str2rcds)
-                # print('*** masked sent ***')
-                # print(sent)
 
                 phrases = []
                 sentence_plan = []
@@ -1075,11 +1054,13 @@ def main(args, DATASET):
                 print(len(pointers))
                 pdb.set_trace()
 
-            paragraph_text = ' . '.join(paragraph_text)
+            paragraph_text = ' . '.join(paragraph_text).strip()
+            if not paragraph_text.endswith('.'):
+                paragraph_text = "{} .".format(paragraph_text)  # append the final '.' if missing somehow
+
             summ_len = len(paragraph_text.split())
-            # if (MIN_PLAN <= len(paragraph_plan_ids) <= MAX_PLAN) and (MIN_SUMM <= summ_len <= MAX_SUMM):
+
             if len(paragraph_plan_ids) >= MIN_PLAN and summ_len >= MIN_SUMM:
-            # if len(paragraph_plan_ids) > 0:
                 to_write = True
                 paragraph_plan_ids = ' '.join(paragraph_plan_ids)
                 paragraph_plan = ' '.join(paragraph_plan)
@@ -1118,6 +1099,8 @@ def main(args, DATASET):
     print("{} samples are retained, {} empty content plans, {} are beyond length ranges".format(output_count, empty_plan, too_long_or_short))
     print("count_missing = {}".format(count_missing))
     print("dummy = {}".format(dummy))
+    print("filter_types:")
+    pprint(filter_types)
 
 
 if __name__ == "__main__":

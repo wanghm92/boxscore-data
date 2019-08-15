@@ -797,7 +797,7 @@ def main(args, DATASET):
                 filter_types.setdefault(cat, 0)
                 filter_types[cat] += 1
                 # go to the next sentence if in the following categories --> buffer will be cleared next
-                if cat != 'gogogo':
+                if cat != 'go_check_content_plan':
                     if cat == 'player-coref':
                         current_sent_players = _build_current_sent_players(sent, table)
                     elif cat == 'team-coref':
