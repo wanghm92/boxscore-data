@@ -275,6 +275,7 @@ post_fixes = OrderedDict({
     'a pair of steals': '2 steals',
     'a pair of rebounds': '2 rebounds',
     'a pair of blocks': '2 blocks',
+    'a pair of boards': '2 boards'
     'KJ_McTroy_Daniels': 'KJ_Daniels',
     'Dennis Schroeder': 'Dennis_Schroder',
     'Antetokonmpo': 'Antetokounmpo',
@@ -293,7 +294,8 @@ post_fixes = OrderedDict({
     '..': ' .',
     'Manu Ginobli': 'Manu_Ginobili',
     ' fives ': ' 5 ',
-    '7 \' 4 inch Center': 'center'
+    '7 \' 4 inch Center': 'center',
+    'Rondae-Rondae_Hollis-Jefferson': 'Rondae_Hollis-Jefferson'
 })
 
 p1 = re.compile("\d+\.\S+|\S+\.\d+")
