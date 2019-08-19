@@ -13,34 +13,29 @@ BOS_WORD = '<s>'
 EOS_WORD = '</s>'
 
 """
-# team - player: plays_for led_by
-# team <-> team and player <-> player: same rcd_type: >=<
+# [done] team - player: plays_for led_by
+# [done] team <-> team and player <-> player: same rcd_type: >=<
 # Edges:
 1. START vs BENCH:
-    + Teams <-has-> START/BENCH <-has-> Players
-    + START/BENCH <-lead-> Best_Player (or Best_Player PTS)
-    + Teams <-lead-> Best_Player (or Best_Player PTS)
-    + START/BENCH <-has-> SUM_PTS
-    + START SUM_PTS <-compare-> BENCH SUM_PTS for each team
-    + START/BENCH SUM_PTS <-compare-> START/BENCH SUM_PTS across teams
-    !+ (Is this necessary?) START:
-    (p|P)oint guard,
-    (s|S)hooting guard,
-    (s|S)mall forward,
-    (P|p)ower forward,
-    center(/Center)
-    (1k+ tokens in train)
-    + led_by verbalized edge
+    !+ [pending] Teams <-has-> START/BENCH <-has-> Players
+    + [done] START/BENCH <-lead-> Best_Player (or Best_Player PTS)
+    + [done] Teams <-lead-> Best_Player (or Best_Player PTS)
+    + [done] START/BENCH SUM_PTS <-compare-> START/BENCH SUM_PTS across teams
+    !+ [pending] verbalized edge for STARTERS/BENCH:
+        (p|P)oint guard,
+        (s|S)hooting guard,
+        (s|S)mall forward,
+        (P|p)ower forward,
+        center(/Center)
+        'the second unit' --> bench
+        (1k+ tokens in train)
+    !+ [pending] verbalized edge for led_by
 
-2. TODOs:
-    + DIFFs not decided
-    + remove N/A players and nodes
-
-# others:
-1. HOME/AWAY
-2. WINNER
-3. STAR/MVP
-3. 'the second unit' --> bench
+2. others:
+    + [done] team --> DIFFs
+    + [optional] remove N/A players and nodes
+    !+ [pending] WINNER
+    !+ [pending] STAR/MVP
 """
 
 line_numkeys = [
