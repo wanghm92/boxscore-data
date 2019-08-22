@@ -81,6 +81,15 @@ box_otherkeys = [
 ]
 print("box_otherkeys: {}".format(len(box_otherkeys)))
 
+box_leadkeys = [
+    'PTS',
+    'FGM', 'FGA',
+    'FG3M', 'FG3A',
+    'FTM', 'FTA',
+    'OREB', 'DREB', 'REB',
+    'AST', 'TOV', 'STL', 'BLK'
+]
+print("box_leadkeys: {}".format(len(box_leadkeys)))
 
 def _get_lookups(records):
     """
@@ -129,7 +138,7 @@ def _get_pairwise(left, right, rcd_types, entity2nodes, node2idx, direction):
     :param node2idx    : [dict] {rcd: sample.index(rcd)}
     :return edges      : [dict] {(left, right): label}
     """
-
+    label = 'greater'
     edges = {}
     for t in rcd_types:
         left_val, left_node = entity2nodes[left][t]
@@ -141,34 +150,38 @@ def _get_pairwise(left, right, rcd_types, entity2nodes, node2idx, direction):
         if left_val == 'N/A':
             if right_val.isdigit():
                 # right > left
-                edges[(right_idx, left_idx)] = '>'
-                if direction == 'two':
-                    edges[(left_idx, right_idx)] = '<'
+                if direction == 'big2small':
+                    edges[(right_idx, left_idx)] = label
+                else:
+                    edges[(left_idx, right_idx)] = label
             else:
                 # right = left
-                edges[(right_idx, left_idx)] = '='
-                edges[(left_idx, right_idx)] = '='
+                edges[(right_idx, left_idx)] = 'equal'
+                edges[(left_idx, right_idx)] = 'equal'
         elif right_val == 'N/A':
             # left > right
-            edges[(left_idx, right_idx)] = '>'
-            if direction == 'two':
-                edges[(right_idx, left_idx)] = '<'
+            if direction == 'big2small':
+                edges[(left_idx, right_idx)] = label
+            else:
+                edges[(right_idx, left_idx)] = label
         else:
             if int(left_val) > int(right_val):
                 # left > right
-                edges[(left_idx, right_idx)] = '>'
-                if direction == 'two':
-                    edges[(right_idx, left_idx)] = '<'
+                if direction == 'big2small':
+                    edges[(left_idx, right_idx)] = label
+                else:
+                    edges[(right_idx, left_idx)] = label
 
             elif int(left_val) < int(right_val):
                 # right > left
-                edges[(right_idx, left_idx)] = '>'
-                if direction == 'two':
-                    edges[(left_idx, right_idx)] = '<'
+                if direction == 'big2small':
+                    edges[(right_idx, left_idx)] = label
+                else:
+                    edges[(left_idx, right_idx)] = label
             else:
                 # right = left
-                edges[(right_idx, left_idx)] = '='
-                edges[(left_idx, right_idx)] = '='
+                edges[(right_idx, left_idx)] = 'equal'
+                edges[(left_idx, right_idx)] = 'equal'
 
     return edges
 
@@ -180,17 +193,16 @@ def _get_team_player(ha2player, ha2team, node2idx):
     :param node2idx : [dict] {rcd: sample.index(rcd)}
     :return:
     """
-    #! NOTE: undirected edges with the same label
-    #? TODO: two different labels
-    label = 'has'
+    label = 'has_player'
     edges = {}
     for ha in ['HOME', 'AWAY']:
         team = ha2team[ha]
         team_id = node2idx[team]
         for p in ha2player[ha]:
             player_id = node2idx[p]
+            # ! NOTE: directed edges from team to player
             edges[(team_id, player_id)] = label
-            edges[(player_id, team_id)] = label
+            # edges[(player_id, team_id)] = label
     return edges
 
 
@@ -202,7 +214,7 @@ def _get_other_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team):
         ha2player    [dict]: {'HOME/AWAY': [player_name_records]}
         ha2team      [dict]: {'HOME/AWAY': [team_name_records]}
     """
-    label = 'has'
+    label = 'has_record'
     edges = {}
     for ha in ['HOME', 'AWAY']:
         # -- PLAYER_NAME to record edges -- #
@@ -213,8 +225,9 @@ def _get_other_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team):
             for key in box_numkeys + box_otherkeys[:-1]:
                 node = player_records[key][1]
                 idx = node2idx[node]
+                # ! NOTE: directed edges from player to records
                 edges[(player_id, idx)] = label
-                edges[(idx, player_id)] = label
+                # edges[(idx, player_id)] = label
 
         # -- TEAM_NAME to record edges -- #
         team = ha2team[ha]  # TEAM_NAME
@@ -224,114 +237,123 @@ def _get_other_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team):
         for key in line_numkeys + line_diffkeys + line_otherkeys[:-1]:
             node = team_records[key][1]
             idx = node2idx[node]
-            edges[(idx, team_id)] = label
+            # edges[(idx, team_id)] = label
+            # ! NOTE: directed edges from team to records
             edges[(team_id, idx)] = label
 
     return edges
 
 
-def _get_lead_player(ha2player, entity2nodes):
-    lead_players = {
-        'HOME': {
-            'START': [],
-            'BENCH': [],
-            'ALL': []
-        },
-        'AWAY': {
-            'START': [],
-            'BENCH': [],
-            'ALL': []
+def _get_top_players(ha2player, entity2nodes, plan, mentioned):
+
+    plan_lkt = dict.fromkeys([x for x in plan.strip().split() if x.split(DELIM)[2] == 'PLAYER_NAME'], 1)
+    player_rankings = {}
+    for rcd_type in box_leadkeys:
+        if mentioned[rcd_type] is None:
+            mentioned[rcd_type] = dict.fromkeys(['START', 'BENCH', 'ALL'], None)
+        before = {
+            'HOME': {
+                'START': [],
+                'BENCH': [],
+                'ALL': []
+            },
+            'AWAY': {
+                'START': [],
+                'BENCH': [],
+                'ALL': []
+            }
         }
-    }
-    for ha in ['HOME', 'AWAY']:
-        lead = [(None, 0)]
-        start_lead = [(None, 0)]
-        bench_lead = [(None, 0)]
-        for player in ha2player[ha]:
-            name = player.split(DELIM)[0]
-            records = entity2nodes[name]
-            points = records['PTS'][0]
-            start_position = records['START_POSITION'][0]
-            start_or_bench = 'BENCH' if start_position == 'N/A' else 'START'
-            if points == 'N/A':
-                continue
-            else:
-                points = int(points)
 
-                if points > lead[0][1]:
-                    lead = [(player, points)]
-                elif points == lead[0][1]:
-                    lead.append((player, points))
-
-                if start_or_bench == 'START':
-                    if points > start_lead[0][1]:
-                        start_lead = [(player, points)]
-                    elif points == start_lead[0][1]:
-                        start_lead.append((player, points))
+        for ha in ['HOME', 'AWAY']:
+            for player in ha2player[ha]:
+                name = player.split(DELIM)[0]
+                records = entity2nodes[name]
+                value, rcd = records[rcd_type]
+                start_position = records['START_POSITION'][0]
+                start_or_bench = 'BENCH' if start_position == 'N/A' else 'START'
+                if value == 'N/A':
+                    continue
                 else:
-                    if points > bench_lead[0][1]:
-                        bench_lead = [(player, points)]
-                    elif points == bench_lead[0][1]:
-                        bench_lead.append((player, points))
+                    value = int(value)
+                    before[ha][start_or_bench].append((player, value, rcd))
+                    before[ha]['ALL'].append((player, value, rcd))
 
-        lead_players[ha]['START'] = [x for x in start_lead if x[0] is not None]
-        lead_players[ha]['BENCH'] = [x for x in bench_lead if x[0] is not None]
-        lead_players[ha]['ALL'] = [x for x in lead if x[0] is not None]
+        after = {
+            'HOME': {
+                'START': [],
+                'BENCH': [],
+                'ALL': []
+            },
+            'AWAY': {
+                'START': [],
+                'BENCH': [],
+                'ALL': []
+            }
+        }
 
-    return lead_players
+        for ha in ['HOME', 'AWAY']:
+            for key in ['START', 'BENCH', 'ALL']:
+                rankings = sorted(before[ha][key], key=lambda x:x[1], reverse=True)
+                after[ha][key] = rankings[:3]  # get top 3 players/statistics
+                for idx, (x, _, _) in enumerate(rankings):
+                    if x in plan_lkt:
+                        if rcd_type == 'PTS' and idx <= 2:
+                            plan_lkt[x] = 0
+                        if mentioned[rcd_type][key] is None:
+                            mentioned[rcd_type][key] = {idx: 1}
+                        elif idx not in mentioned[rcd_type][key]:
+                            mentioned[rcd_type][key][idx] = 1
+                        else:
+                            mentioned[rcd_type][key][idx] += 1
+        player_rankings[rcd_type] = after
+
+    remaining = sum(plan_lkt.values())
+    return player_rankings, mentioned, len(plan_lkt), remaining
 
 
-def _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team):
+def _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, mentioned):
     # TODO: current version has TEAM-PTS_SUM-START led_by PLAYER_NAME, change it
 
-    lead_players = _get_lead_player(ha2player, entity2nodes)
     edges = {}
-    label = 'led_by'
+    player_rankings, mentioned, cnt, remaining = _get_top_players(ha2player, entity2nodes, plan, mentioned)
+    labels = {i:"top_{}".format(i+1) for i in range(3)}
 
-    for ha in ['HOME', 'AWAY']:
-        team = ha2team[ha]  # TEAM_NAME
-        teamname, teamentity, _, _ = team.split(DELIM)
-        # print("teamname = {}, teamentity = {}".format(teamname, teamentity))
+    for rcd_type in box_leadkeys:
+        team_rcd_type = "TEAM-{}".format(rcd_type)
+        for ha in ['HOME', 'AWAY']:
+            team = ha2team[ha]  # the TEAM_NAME node
+            teamname, teamentity, _, _ = team.split(DELIM)
+            team_meta = DELIM.join([teamentity, team_rcd_type, ha])
 
-        team_id = node2idx[team]
-        start_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-START', ha])
-        start_id = meta2idx[start_meta]
-        bench_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-BENCH', ha])
-        bench_id = meta2idx[bench_meta]
+            if rcd_type == 'PTS':
+                # TEAM to top 3, START to top 3, BENCH to top3
+                team_id = node2idx[team]  # the TEAM_NAME node
+                lead_players = player_rankings[rcd_type][ha]['ALL']
+                for idx, (p, _, _) in enumerate(lead_players):
+                    player_id = node2idx[p]
+                    edges[(team_id, player_id)] = labels[idx]
 
-        # print("start_meta = {}, bench_meta = {}".format(start_meta, bench_meta))
+                start_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-START', ha])
+                start_id = meta2idx[start_meta]
+                lead_starters = player_rankings[rcd_type][ha]['START']
+                for idx, (p, _, _) in enumerate(lead_starters):
+                    player_id = node2idx[p]
+                    edges[(start_id, player_id)] = labels[idx]
 
-        triple = lead_players[ha]
-        all_leaders = triple['ALL']
-        start_leaders = triple['START']
-        bench_leaders = triple['BENCH']
+                bench_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-BENCH', ha])
+                bench_id = meta2idx[bench_meta]
+                lead_benchers = player_rankings[rcd_type][ha]['START']
+                for idx, (p, _, _) in enumerate(lead_benchers):
+                    player_id = node2idx[p]
+                    edges[(bench_id, player_id)] = labels[idx]
 
-        # print("all_leaders = {}\n start_leaders = {}\n bench_leaders = {}\n"
-        #       .format(all_leaders, start_leaders, bench_leaders))
+            lead_players = player_rankings[rcd_type][ha]['ALL']
+            for idx, (name, value, rcd) in enumerate(lead_players):
+                rcd_id = node2idx[rcd]
+                team_id = meta2idx[team_meta]  # the TEAM_NAME node
+                edges[(team_id, rcd_id)] = labels[idx]
 
-        for player, _ in all_leaders:
-            # print("all leader = {}".format(player))
-            player_id = node2idx[player]
-            edges[(team_id, player_id)] = label
-            # edges[(player_id, team_id)] = label
-
-        for player, _ in start_leaders:
-            # print("start leader = {}".format(player))
-            player_id = node2idx[player]
-            edges[(start_id, player_id)] = label
-            # edges[(player_id, start_id)] = label
-
-        for player, _ in bench_leaders:
-            # print("bench leader = {}".format(player))
-            # try:
-            player_id = node2idx[player]
-            # except:
-            #     import pdb
-            #     pdb.set_trace()
-            edges[(bench_id, player_id)] = label
-            # edges[(player_id, bench_id)] = label
-
-    return edges
+    return edges, mentioned, cnt, remaining
 
 
 def _sanity_check(edges, records):
@@ -352,7 +374,7 @@ def _sanity_check(edges, records):
 BASE="/mnt/cephfs2/nlp/hongmin.wang/table2text/boxscore-data"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--direction', required=True, choices=['one', 'two'],
+    parser.add_argument('--direction', required=True, choices=['big2small', 'small2big'],
                         help='if use undirected edges between pair of statistics, e.g. PTS vs PTS. Default: False')
     parser.add_argument('--dataset', required=True, choices=['inlg', 'aaai'],
                         help='which dataset to take in')
@@ -362,15 +384,23 @@ if __name__ == "__main__":
         line_otherkeys.extend(['TEAM-NEXT_NAME', 'TEAM-NEXT_CITY', 'TEAM-NEXT_DAY', 'TEAM-NEXT_HA'])
 
     for DATA in ['train', 'valid', 'test']:
+        total = 0
+        remaining = 0
+        mentioned = dict.fromkeys(box_leadkeys, None)
+
         fname = "{}/scripts_{}/new_dataset/new_ncpcc/{}/src_{}.norm.trim.ncp.full.txt"\
+            .format(BASE, args.dataset, DATA, DATA)
+        cpname = "{}/scripts_{}/new_dataset/new_ncpcc/{}/{}_content_plan_tks.txt"\
             .format(BASE, args.dataset, DATA, DATA)
         fout = "{}/scripts_{}/new_dataset/new_ncpcc/{}/edges_{}.ncp.new.direction-{}.jsonl"\
             .format(BASE, args.dataset, DATA, DATA, args.direction)
 
-        with io.open(fname, 'r', encoding='utf-8') as fin, jsonlines.open(fout, 'w') as writer:
+        with io.open(fname, 'r', encoding='utf-8') as fin, io.open(cpname, 'r', encoding='utf-8') as cpfin, \
+                jsonlines.open(fout, 'w') as writer:
 
+            outlines = cpfin.read().strip().split('\n')
             inputs = fin.read().strip().split('\n')
-            for sample in tqdm(inputs):
+            for sample, plan in tqdm(zip(inputs, outlines)):
                 edges = {}
 
                 # --- get lookup tables --- #
@@ -387,21 +417,41 @@ if __name__ == "__main__":
                     for left, right in pair_list:
                         edges.update(_get_pairwise(left, right, rcd_types, entity2nodes, node2idx, args.direction))
 
-                # _sanity_check(edges, records)
-
                 team_player_edges = _get_team_player(ha2player, ha2team, node2idx)
                 edges.update(team_player_edges)
+                # _sanity_check(team_player_edges, records)
 
                 other_edges = _get_other_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team)
+                # _sanity_check(other_edges, records)
                 edges.update(other_edges)
 
-                lead_edge = _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team)
+                lead_edge, mentioned, temp, tmp = _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, mentioned)
+                # _sanity_check(lead_edge, records)
                 edges.update(lead_edge)
 
-                # _sanity_check(edges, records)
-
+                total += temp
+                remaining += tmp
                 combo = {}
                 for (left, right), lab in edges.items():
                     key = '{},{}'.format(left, right)
                     combo[key] = lab
                 writer.write(combo)
+
+        print("{} out of {} are not top3 players {:0.2f} %".format(remaining, total, 100-100.0*remaining/total))
+        for rcd_type in box_leadkeys:
+            print("\n *** {}".format(rcd_type))
+            pprint(mentioned[rcd_type])
+            for key in ['START', 'BENCH', 'ALL']:
+                this_sum = 0
+                for rank in [0, 1, 2]:
+                    count = mentioned[rcd_type][key][rank]
+                    this_sum += count
+                    print("[{}] Player ranked #{} has been mentioned {}/{} ({:0.2f}%) times".format(
+                        key,
+                        rank + 1,
+                        count,
+                        total,
+                        count*100.0/total
+                    ))
+
+                print(" ** [{}] Player ranked top-3 has been mentioned {}/{} ({:0.2f}%) times".format(key, this_sum, total, this_sum*100.0/total))
