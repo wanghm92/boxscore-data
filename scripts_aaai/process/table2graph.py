@@ -312,7 +312,6 @@ def _get_top_players(ha2player, entity2nodes, plan, mentioned):
 
 
 def _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, mentioned):
-    # TODO: current version has TEAM-PTS_SUM-START led_by PLAYER_NAME, change it
 
     edges = {}
     player_rankings, mentioned, cnt, remaining = _get_top_players(ha2player, entity2nodes, plan, mentioned)
@@ -356,13 +355,54 @@ def _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, 
     return edges, mentioned, cnt, remaining
 
 
+def _get_norms(edges):
+    edges_with_norms = copy.deepcopy(edges)
+
+    sink2norms = {}
+    for (src, sink), label in edges.items():
+        if not sink in sink2norms:
+            sink2norms[sink] = {
+                'greater': [],
+                'equal': [],
+                'has_player':[],
+                'has_record': [],
+                'top_1': [],
+                'top_2': [],
+                'top_3': []
+            }
+        sink2norms[sink][label].append(src)
+
+    tmp = copy.deepcopy(sink2norms)
+    for sink, temp in sink2norms.items():
+        meta_count = len([x for _, x in temp.items() if len(x)>0])
+        if meta_count > 0:
+            meta_norm = 1.0/meta_count
+        else:
+            raise ValueError("sink = {} has no neighbour ???".format(sink))
+            import pdb
+            pdb.set_trace()
+
+        for key, neighbours in temp.items():
+            cnt = len(neighbours)
+            if cnt == 0:
+                continue
+            norm = meta_norm/cnt
+            tmp[sink][key] = list(zip([norm]*cnt, neighbours))
+            for n in neighbours:
+                label = edges_with_norms[(n, sink)]
+                assert label == key
+                edges_with_norms[(n, sink)] = (label, norm)
+
+    return edges_with_norms
+
 def _sanity_check(edges, records):
     import pandas as pd
-    temp = {'left':[], 'label':[], 'right':[]}
-    for (left, right), label in edges.items():
+    temp = {'left':[], 'label':[], 'right':[], 'norm':[]}
+    for (left, right), (label, norm) in edges.items():
         temp['left'].append(records[left])
         temp['right'].append(records[right])
         temp['label'].append(label)
+        temp['norm'].append(norm)
 
     # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
     print(pd.DataFrame(temp).to_string())
@@ -384,6 +424,7 @@ if __name__ == "__main__":
         line_otherkeys.extend(['TEAM-NEXT_NAME', 'TEAM-NEXT_CITY', 'TEAM-NEXT_DAY', 'TEAM-NEXT_HA'])
 
     for DATA in ['train', 'valid', 'test']:
+        print("Processing {} set".format(DATA))
         total = 0
         remaining = 0
         mentioned = dict.fromkeys(box_leadkeys, None)
@@ -392,7 +433,7 @@ if __name__ == "__main__":
             .format(BASE, args.dataset, DATA, DATA)
         cpname = "{}/scripts_{}/new_dataset/new_ncpcc/{}/{}_content_plan_tks.txt"\
             .format(BASE, args.dataset, DATA, DATA)
-        fout = "{}/scripts_{}/new_dataset/new_ncpcc/{}/edges_{}.ncp.new.direction-{}.jsonl"\
+        fout = "{}/scripts_{}/new_dataset/new_ncpcc/{}/edges_{}.ncp.new.direction-{}.addnorms.jsonl"\
             .format(BASE, args.dataset, DATA, DATA, args.direction)
 
         with io.open(fname, 'r', encoding='utf-8') as fin, io.open(cpname, 'r', encoding='utf-8') as cpfin, \
@@ -429,12 +470,15 @@ if __name__ == "__main__":
                 # _sanity_check(lead_edge, records)
                 edges.update(lead_edge)
 
+                edges = _get_norms(edges)
+                # _sanity_check(edges, records)
+
                 total += temp
                 remaining += tmp
                 combo = {}
-                for (left, right), lab in edges.items():
+                for (left, right), (lab, norm) in edges.items():
                     key = '{},{}'.format(left, right)
-                    combo[key] = lab
+                    combo[key] = (lab, norm)
                 writer.write(combo)
 
         print("{} out of {} are not top3 players {:0.2f} %".format(remaining, total, 100-100.0*remaining/total))
