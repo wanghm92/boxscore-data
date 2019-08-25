@@ -18,6 +18,7 @@ EOS_WORD = '</s>'
 # Edges:
 1. START vs BENCH:
     !+ [pending] Teams <-has-> START/BENCH <-has-> Players
+    !+ [pending] START/BENCH SUMS <-led_by-> Top player PTS
     + [done] START/BENCH <-lead-> Best_Player (or Best_Player PTS)
     + [done] Teams <-lead-> Best_Player (or Best_Player PTS)
     + [done] START/BENCH SUM_PTS <-compare-> START/BENCH SUM_PTS across teams
