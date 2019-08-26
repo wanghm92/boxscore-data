@@ -359,6 +359,16 @@ def _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, 
 def _get_norms(edges):
     edges_with_norms = copy.deepcopy(edges)
 
+    label2metanorm = {
+        'greater': 1.0/8,
+        'equal': 1.0/8,
+        'has_player': 1.0/4,
+        'has_record': 1.0/4,
+        'top_1': 1.0/4,
+        'top_2': 1.0/4,
+        'top_3': 1.0/4
+    }
+
     sink2norms = {}
     for (src, sink), label in edges.items():
         if not sink in sink2norms:
@@ -377,7 +387,8 @@ def _get_norms(edges):
     for sink, temp in sink2norms.items():
         meta_count = len([x for _, x in temp.items() if len(x)>0])
         if meta_count > 0:
-            meta_norm = 1.0/meta_count
+            # meta_norm = 1.0/meta_count
+            pass
         else:
             raise ValueError("sink = {} has no neighbour ???".format(sink))
             import pdb
@@ -387,6 +398,7 @@ def _get_norms(edges):
             cnt = len(neighbours)
             if cnt == 0:
                 continue
+            meta_norm = label2metanorm[key]
             norm = meta_norm/cnt
             tmp[sink][key] = list(zip([norm]*cnt, neighbours))
             for n in neighbours:
@@ -434,7 +446,7 @@ if __name__ == "__main__":
             .format(BASE, args.dataset, DATA, DATA)
         cpname = "{}/scripts_{}/new_dataset/new_ncpcc/{}/{}_content_plan_tks.txt"\
             .format(BASE, args.dataset, DATA, DATA)
-        fout = "{}/scripts_{}/new_dataset/new_ncpcc/{}/edges_{}.ncp.new.direction-{}.addnorms.jsonl"\
+        fout = "{}/scripts_{}/new_dataset/new_ncpcc/{}/edges_{}.ncp.new.direction-{}.newnorms.jsonl"\
             .format(BASE, args.dataset, DATA, DATA, args.direction)
 
         with io.open(fname, 'r', encoding='utf-8') as fin, io.open(cpname, 'r', encoding='utf-8') as cpfin, \
