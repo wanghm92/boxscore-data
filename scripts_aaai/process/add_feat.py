@@ -3,12 +3,12 @@ from tqdm import tqdm
 from collections import Counter
 from pprint import pprint
 import pandas as pd
-sys.path.insert(0, '../purification/')
+# sys.path.insert(0, '../purification/')
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
 DELIM = "￨"
 LOWER = False
-all_games = pd.read_pickle("/mnt/bhd/hongmin/nba/crawl/all_games.pkl")
+all_games = pd.read_pickle("all_games.pkl")
 
 # ---------------------- #
 # --- add game arena --- #

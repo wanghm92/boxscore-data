@@ -46,6 +46,9 @@ def main(infile, outdir):
         # game["vis_line"]["NAME"] = game["vis_name"]
         line = pandas.DataFrame({game["home_name"] : game["home_line"], game["vis_name"]: game["vis_line"]})
 
+        # import pdb
+        # pdb.set_trace()
+
         stats["H/V"] = (stats["TEAM_CITY"] == game["home_city"] ).map(lambda a: "H" if a else "V")
         # del stats["FIRST_NAME"]
         # del stats["SECOND_NAME"]
@@ -181,7 +184,7 @@ def main(infile, outdir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='clean')
     parser.add_argument('--src', type=str, required=True,
-                        help='directory of *.json')
+                        help='path to *.jsonl')
     parser.add_argument('--out', type=str, required=True,
                         help='output directory to save the htmls')
     args = parser.parse_args()

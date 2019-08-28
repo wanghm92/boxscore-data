@@ -275,7 +275,7 @@ post_fixes = OrderedDict({
     'a pair of steals': '2 steals',
     'a pair of rebounds': '2 rebounds',
     'a pair of blocks': '2 blocks',
-    'a pair of boards': '2 boards'
+    'a pair of boards': '2 boards',
     'KJ_McTroy_Daniels': 'KJ_Daniels',
     'Dennis Schroeder': 'Dennis_Schroder',
     'Antetokonmpo': 'Antetokounmpo',
@@ -309,7 +309,7 @@ full_name_cnt = 0
 
 def fix_tokenization(s):
     global full_name_cnt
-    mwe_file = "/home/hongmin_wang/table2text_nlg/harvardnlp/data2text-harvard/mwes.json"
+    mwe_file = "mwes.json"
     with io.open(mwe_file, 'r', encoding='utf-8') as fmwe:
         tmp = json.load(fmwe)
         mwes = {k:v for k,v in tmp.items() if v>1}
