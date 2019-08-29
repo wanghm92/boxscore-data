@@ -1,6 +1,7 @@
 import re, os, sys, pdb
 from domain_knowledge import Domain_Knowledge
 knowledge_container = Domain_Knowledge()
+from pprint import pprint
 
 LOWER = False
 DELIM = "￨"
@@ -56,7 +57,9 @@ def _whats_next(inp):
         value, field, rcd_type, ha = rcd.split(DELIM)
         if rcd_type.startswith('TEAM-NEXT'):
             tmp[DELIM.join([rcd_type, ha])] = (value, field)
-            str2nextrcds[value] = [rcd]
+            str2nextrcds.setdefault(field, {})
+            str2nextrcds[field].setdefault(value, rcd)
+            str2nextrcds[field].update({value:rcd})
 
     upcomings = {
         'HOME': {'NAME': 'N/A', 'CITY': 'N/A', 'DAY': 'N/A'},
@@ -89,11 +92,51 @@ def _talking_about_schecule(this, other_team, upcomings):
 
     return False
 
-def _build_buffer(buffer, this, str2rcds):
+def _get_team_name(tk, table, city2team, alias2team):
+    if tk in city2team:
+        tk = city2team.get(tk, None)
+    elif tk in alias2team:
+        tk = alias2team.get(tk, None)
+    return tk if tk is not None and tk in table['Teams'] else None
+
+def _build_buffer_next(buffer, this, allstr2rcds, table, city2team, alias2team, str2nextrcd):
+
+    buffer['text'] = this
+    teamstr2rcds = None
+    for idx, tk in enumerate(this.split()):
+        # this includes home/away
+        if tk in allstr2rcds:
+            team = _get_team_name(tk, table, city2team, alias2team)
+            if team is not None:
+                # teamstr2rcds stays None until the first team if found
+                # later switching to the next only if the next team is mentioned
+                teamstr2rcds = str2nextrcd[team]
+                # tk is a team name/city/alias, it cannot be home/away
+                buffer['plan'].append(allstr2rcds[tk][0])
+                buffer['pointer'].append(idx)
+            if teamstr2rcds is not None and tk in teamstr2rcds:
+                # restricting looking up from the team currently being talked about
+                buffer['plan'].append(teamstr2rcds[tk])
+                buffer['pointer'].append(idx)
+
+    # if buffer['plan'] and 'home' in this:
+    # if buffer['plan'] and 'home' in this or 'away' in this:
+    #     pprint(buffer)
+    #     print(allstr2rcds.keys())
+    #     print(allstr2rcds.get('home', None))
+    #     print(allstr2rcds.get('away', None))
+    #     if len(this.split(',')) == 1:
+    #         import pdb
+    #         pdb.set_trace()
+    return buffer
+
+def _build_buffer_general(buffer, this, allstr2rcds):
     buffer['text'] = this
     for idx, tk in enumerate(this.split()):
-        if tk in str2rcds:
-            buffer['plan'].append(str2rcds[tk][0])
+        if tk in ['home', 'away']:
+            continue
+        if tk in allstr2rcds:
+            buffer['plan'].append(allstr2rcds[tk][0])
             buffer['pointer'].append(idx)
     return buffer
 
@@ -130,7 +173,7 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city
         if next is not None:
             next_players = [x for x in next.split() if x in table['Players']]
 
-            buffer = _build_buffer(buffer, this, allstr2rcds)
+            buffer = _build_buffer_general(buffer, this, allstr2rcds)
 
             if len(this_players) > 0 and any([x in next_players for x in this_players]):
                 cat = 'player'
@@ -157,7 +200,7 @@ def dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city
                     break
 
             if _talking_about_schecule(this, other_team, upcomings):
-                buffer = _build_buffer(buffer, this, str2nextrcds)
+                buffer = _build_buffer_next(buffer, this, allstr2rcds, table, city2team, alias2team, str2nextrcds)
                 cat = 'schedule'
             else:
                 cat = 'skip'

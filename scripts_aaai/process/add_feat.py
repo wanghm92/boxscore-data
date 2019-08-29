@@ -394,7 +394,7 @@ def player_features(records, add_dd=False):
                 player2pts[ent_type]['reb'] = cell
             elif rcd_type == 'AST':
                 player2pts[ent_type]['ast'] = cell
-            elif rcd_type == 'STL':
+            elif rcd_type == 'STL':–
                 player2pts[ent_type]['stl'] = cell
             elif rcd_type == 'BLK':
                 player2pts[ent_type]['blk'] = cell
@@ -410,7 +410,7 @@ def player_features(records, add_dd=False):
 '''
 
 
-def _search_game(gameday, name, city):
+def _search_game(gameday, name, city, summary):
     team = ' '.join([city, name])
     today = gameday
     for i in range(5):
@@ -424,8 +424,8 @@ def _search_game(gameday, name, city):
         if not candidate.empty:
             # get the opponent team
             game_id = candidate.GAME_ID.values[0]
-            next = all_games[(all_games.GAME_ID == game_id) & (~all_games.TEAM_NAME.isin([team]))]
-            next_full = next.TEAM_NAME.values[0]
+            nextone = all_games[(all_games.GAME_ID == game_id) & (~all_games.TEAM_NAME.isin([team]))]
+            next_full = nextone.TEAM_NAME.values[0]
 
             # the only two-word team
             if 'Trail Blazers' in next_full:
@@ -435,15 +435,14 @@ def _search_game(gameday, name, city):
             next_city = next_full.replace(next_name, '').strip()
 
             # get if this team is home/away in the next game by checking if 'vs' is in MATCHUP, '@' for away team
-            next_ha = 'home' if 'vs' in next['MATCHUP'].values[0] else 'away'
-            # daystr = "%02d_%02d_%02d" % (month, day, year)
-            # key = "{}-{}-{}".format(daystr, name, next_name)
-            # try:
-            #     next_ha = homeaway_lkt[key][name]
-            # except:
-            #     next_ha = 'N/A'
-            # pdb.set_trace()
-
+            last_sent = summary.split(' . ')[-1]
+            if 'vs' in nextone['MATCHUP'].values[0]:
+                if 'traveling_to' in last_sent:
+                    next_ha = 'traveling_to'
+                else:
+                    next_ha = 'on_the_road'
+            else:
+                next_ha = 'home'
             day_of_week = calendar.day_name[today.weekday()]
 
             return '_'.join(next_name.strip().split()), '_'.join(next_city.strip().split()), day_of_week, next_ha
@@ -453,7 +452,7 @@ def _search_game(gameday, name, city):
 
 no_next = {'home':0, 'away':0, 'ha':0}
 no_next_summaries = []
-def get_next_games(records, tbl):
+def get_next_games(records, tbl, summary):
     global no_next
     month, day, year = tbl['day'].split('_')
     gameday = datetime.date(int(year), int(month), int(day))
@@ -462,7 +461,7 @@ def get_next_games(records, tbl):
         this_name = tbl['{}_name'.format(identifier)]
         this_city = tbl['{}_city'.format(identifier)]
 
-        next_name, next_city, next_day, next_ha = _search_game(gameday, this_name, this_city)
+        next_name, next_city, next_day, next_ha = _search_game(gameday, this_name, this_city, summary)
 
         prefix = 'away' if identifier == 'vis' else 'home'
         if next_name == 'N/A':
@@ -546,7 +545,7 @@ def main(js, src, tgt, src_out, json_out):
             # records_feat = player_features(records_feat)
 
             # (5) Team schedules
-            records_feat = get_next_games(records_feat, tbl)
+            records_feat = get_next_games(records_feat, tbl, summary)
 
             output.append(' '.join(records_feat))
             # print(len(records_feat))

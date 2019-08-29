@@ -1,8 +1,3 @@
-"""
-This cleaning script does the following:
-(1)
-"""
-
 import re, io, copy, os, sys, argparse, json
 from tqdm import tqdm
 from collections import Counter, OrderedDict
@@ -82,7 +77,10 @@ mwes = {
     "Eastern Conference": "Eastern_Conference",
     "Western Conference": "Western_Conference",
     "NBA Finals": "NBA_Finals",
-    "runner - up": 'runner_up'
+    "runner - up": "runner_up",
+    "on the road": "on_the_road",
+    "hit the road ": "will be on_the_road",
+    "travel to ": "will be traveling_to",
 }
 
 mwes_dash = {
@@ -107,10 +105,10 @@ others = {
     "injury - riddled": "injury_riddled",
     "hack - a - DeAndre": "hack_a_DeAndre",
     "out - rebounded": "out_rebounded",
-    'P\.J\.Tucker': 'P.J. Tucker',
-    'K\.J\.McDaniels': 'K.J. McDaniels',
-    'K\.J\.McTroy Daniels': 'K.J. McTroyDaniels',
-    '-esque': ' - esque'
+    "P\.J\.Tucker": "P.J. Tucker",
+    "K\.J\.McDaniels": "K.J. McDaniels",
+    "K\.J\.McTroy Daniels": "K.J. McTroyDaniels",
+    "-esque": " - esque"
 }
 
 three_pts = {
@@ -129,22 +127,22 @@ two_pts = {
 
 # X.X .
 abbrev_names = {
-    'A\.J\s*\.* ': 'AJ ',
-    'C\.J\s*\.* ': 'CJ ',
-    'D\.J\s*\.* ': 'DJ ',
-    'J\.J\s*\.* ': 'JJ ',
-    'O\.J\s*\.* ': 'OJ ',
-    'P\.J\s*\.* ': 'PJ ',
-    'T\.J\s*\.* ': 'TJ ',
-    'K\.J\s*\.* ': 'KJ ',
-    'J\.R\.* ': 'JR ',
-    ' , Jr\. | Jr\. ': ' Jr ',
-    'Washington( ,)* D\.*C\.*': 'Washington_DC',
-    'Amare': 'Amar\'e',
-    'No\.1': 'best',
-    'Jan\.28': 'Jan. 28',
-    'under\.500': 'under 500',
-    'The Greek Freak': 'The_Greek_Freak'
+    "A\.J\s*\.* ": "AJ ",
+    "C\.J\s*\.* ": "CJ ",
+    "D\.J\s*\.* ": "DJ ",
+    "J\.J\s*\.* ": "JJ ",
+    "O\.J\s*\.* ": "OJ ",
+    "P\.J\s*\.* ": "PJ ",
+    "T\.J\s*\.* ": "TJ ",
+    "K\.J\s*\.* ": "KJ ",
+    "J\.R\.* ": "JR ",
+    " , Jr\. | Jr\. ": " Jr ",
+    "Washington( ,)* D\.*C\.*": "Washington_DC",
+    "Amare": "Amar\"e",
+    "No\.1": "best",
+    "Jan\.28": "Jan. 28",
+    "under\.500": "under 500",
+    "The Greek Freak": "The_Greek_Freak"
 }
 
 toreplace = [double_word_team_names, arenas, mwes, mwes_dash, others, three_pts, two_pts, abbrev_names]
@@ -458,8 +456,25 @@ def int_value(input):
         value = text2num(input)
     return value
 
+def _check_lead(sent):
+    # lead the way|bench|team|start|reserve --> led the way
+    pattern = re.compile('lead the (way|bench|team|start|reserve|second unit)')
+    if re.search(pattern, sent):
+        for i in re.findall(pattern, sent):
+            sent = sent.replace("lead the {}".format(i), "led the {}".format(i))
+    return sent
 
-def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe):
+def _fix_on_the_road(sent):
+    pattern = re.compile("on_the_road(\S)")
+    if re.search(pattern, sent):
+        print(" *** on the road ***")
+        print(sent)
+        for i in re.findall(pattern, sent):
+            sent = sent.replace("on_the_road{}".format(i), "on_the_road {}".format(i))
+        print("\nchanged to\n{}\n".format(sent))
+    return sent
+
+def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe, dataset):
     print("run_clean ...")
     with io.open(src, 'r', encoding='utf-8') as fin_src, \
             io.open(tgt, 'r', encoding='utf-8') as fin_tgt, \
@@ -492,6 +507,9 @@ def run_clean(tgt, fout_tgt_tk, fout_tgt_mwe):
 
         all_num_dataset = []
         for sent in tqdm(targets_cleaned):
+            if dataset == 'train':
+                sent = _check_lead(sent)
+            sent = _fix_on_the_road(sent)
             all_num_tks = []
             tokens = sent.split()
             for idx, t in enumerate(tokens):
@@ -544,4 +562,4 @@ if __name__ == "__main__":
         fout_src, fout_tgt_tk, fout_tgt_mwe = [os.path.join(out_dir, f) for f in output_files]
 
         input_table_normalization(src, fout_src)
-        run_clean(tgt, fout_tgt_tk, fout_tgt_mwe)
+        run_clean(tgt, fout_tgt_tk, fout_tgt_mwe, dataset)
