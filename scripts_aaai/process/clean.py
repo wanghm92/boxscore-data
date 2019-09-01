@@ -79,8 +79,16 @@ mwes = {
     "NBA Finals": "NBA_Finals",
     "runner - up": "runner_up",
     "on the road": "on_the_road",
-    "hit the road ": "will be on_the_road",
-    "travel to ": "will be traveling_to",
+    "hit the road ": "will be on_the_road ",
+    "travel to ": "will be traveling_to ",
+    "the starting (?:5|- 5|unit|lineup) ": "the starters ",
+    "the (?:reserves|seond unit) ": "the bench ",
+    "team - high": "team_high",
+    "game - highs*(?: of)*": "game_high",
+    "led to": "led_to",
+    "second unit": "bench",
+    "reserves*": "bench",
+    "paced": "led",
 }
 
 mwes_dash = {
@@ -417,10 +425,8 @@ def input_table_normalization(src, fout_src):
                 if not rcd_type.startswith('TEAM'):
                     first_name = ent_type.split('_')[0]
                     if re.search(annoying_names, first_name):
-                        #                     print(ent_type)
                         first_name = first_name.replace('.', '')
                         ent_type = '_'.join([first_name] + ent_type.split('_')[1:])
-                        #                     print(ent_type)
 
                 if rcd_type == 'FIRST_NAME':
                     _, _, x, _ = records[idx + 1].strip().split(DELIM)
@@ -458,7 +464,7 @@ def int_value(input):
 
 def _check_lead(sent):
     # lead the way|bench|team|start|reserve --> led the way
-    pattern = re.compile('lead the (way|bench|team|start|reserve|second unit)')
+    pattern = re.compile('lead the (way|bench|team|start|reserves|second unit)')
     if re.search(pattern, sent):
         for i in re.findall(pattern, sent):
             sent = sent.replace("lead the {}".format(i), "led the {}".format(i))

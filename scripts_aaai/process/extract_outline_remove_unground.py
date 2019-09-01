@@ -11,7 +11,11 @@ Taking care of extra line score items:
     'TEAM-PTS_QTR_DIFF-FIRST', 'TEAM-PTS_QTR_DIFF-SECOND', 'TEAM-PTS_QTR_DIFF-THIRD', 'TEAM-PTS_QTR_DIFF-FOURTH',
     'TEAM-PTS_TOTAL_DIFF'
 """
-# TODO: align max/min sentence with records
+# [optional] align max/min sentence with records
+# [optional] "a pair of \d+ - point effort/talli": include two records
+# [done] fix home|team-next-ha bug
+# TODO: first|second|third|fourth quarter, first|seond half
+# grep -o -P "(first|second|third|fourth) (quarter|half)" tgt_train.norm.mwe.trim.txt | wc -l : 3252 in train
 
 import re, io, copy, os, sys, argparse, json, pdb, jsonlines, shutil
 from tqdm import tqdm
@@ -207,35 +211,6 @@ def retrieve_record(value, num2rcds, priority):
                 value = v
                 break
     return candidate, value
-
-'''
-Originally prepared to retain the same settings for NCP and WS2017
-# ------------------------------------------------------------------------------- #
-# --- construct a heuristic based outline for samples with empty content plan --- #
-# ------------------------------------------------------------------------------- #
-
-def _construct_dummy_plan(table, rcd2idx):
-    paragraph_plan_ids, paragraph_plan = [], []
-
-    for team, records in table['Teams'].items():
-        if records[0].split(DELIM)[-1] == 'HOME':
-            hometeam = team
-        else:
-            awayteam = team
-
-    team2dict = {}
-    for team in [hometeam, awayteam]:
-        records = table['Teams'][team]
-        rcd_type2rcd = {x.split(DELIM)[2]: x for x in records}
-        team2dict[team] = rcd_type2rcd
-        paragraph_plan.extend([rcd_type2rcd['TEAM-CITY'], rcd_type2rcd['TEAM-NAME'], rcd_type2rcd['TEAM-WINS'], rcd_type2rcd['TEAM-WINS']])
-
-    paragraph_plan.extend([team2dict[hometeam]['TEAM-PTS'], team2dict[awayteam]['TEAM-PTS']])
-    paragraph_plan_ids = [rcd2idx[rcd] for rcd in paragraph_plan]
-    print(paragraph_plan)
-    print(paragraph_plan_ids)
-    return ' '.join(paragraph_plan_ids), ' '.join(paragraph_plan)
-'''
 
 
 def get_records(phrase, num2rcds, the_other_team_records):
@@ -598,16 +573,23 @@ def get_records(phrase, num2rcds, the_other_team_records):
 # -------------------------------------------------------------------------------------------------------------------- #
 RCD_PER_PLAYER = 21
 NUM_PLAYERS = 26
-RCD_PER_TEAM = len(knowledge_container.line_keys_ext)
+RCD_PER_TEAM = len(knowledge_container.line_keys_ext) + len(knowledge_container.line_keys_more)
 NUM_TEAMS = 2
+print("RCD_PER_PLAYER = {}".format(RCD_PER_PLAYER))
+print("NUM_PLAYERS = {}".format(NUM_PLAYERS))
+print("RCD_PER_TEAM = {}".format(RCD_PER_TEAM))
+print("NUM_TEAMS = {}".format(NUM_TEAMS))
 
 alias2team = knowledge_container.alias2team
 singular_prons = knowledge_container.singular_prons
 plural_prons = knowledge_container.plural_prons
+padding_token_lkt = dict.fromkeys(['<unk>', '<s>', '</s>', '<blank>'])
+special_nodes_lkt = dict.fromkeys(['starters', 'bench', 'team_high'])
 
 
 def _tokenize(word):
     return ' '.join(word.split('_'))
+
 
 def _any_other_player(sent):
     """
@@ -648,20 +630,26 @@ def _build_current_sent_teams(sent, table, city2team):
             current_sent_teams[team] = True
     return current_sent_teams
 
+def _get_entity2ha(inp):
+    entity2ha = {}
+    records = inp.strip().split()
+    for idx, rcd in enumerate(records):
+        _, field, _, ha = rcd.split(DELIM)
+        if not field in entity2ha:
+            entity2ha[field] = ha
+    return entity2ha
 
 def main(args, DATASET):
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
-    # JSON_DIR = "../new_dataset/new_jsonl/"
-    # js = os.path.join(JSON_DIR, "{}.jsonl".format(DATASET))
 
     input_files = [
         "%s.ext.jsonl" % DATASET,         # from add feat
         "src_%s.norm.ext.txt" % DATASET,  # from add feat
+        "src_%s.norm.ext.addsp.txt" % DATASET,  # from add feat
         "tgt_%s.norm.mwe.txt" % DATASET,  # from clean
-        # "tgt_%s.norm.filter.mwe.txt" % DATASET
     ]
 
-    js, clean_src, clean_tgt = [os.path.join(BASE_DIR, f) for f in input_files]
+    js, clean_src, clean_src_addsp, clean_tgt = [os.path.join(BASE_DIR, f) for f in input_files]
 
     for f in [js, clean_tgt]:
         if not os.path.exists(f):
@@ -675,13 +663,20 @@ def main(args, DATASET):
         "%s_content_plan_tks.txt" % DATASET,
         "%s_content_plan_ids.txt" % DATASET,
         "%s_ptrs.txt" % DATASET,
+        "%s_content_plan_tks.addsp.txt" % DATASET,
+        "%s_content_plan_ids.addsp.txt" % DATASET,
+        "%s_ptrs.addsp.txt" % DATASET,
         "tgt_%s.norm.mwe.trim.txt" % DATASET,
         "tgt_%s.norm.mwe.trim.full.txt" % DATASET,
-        "src_%s.norm.trim.txt" % DATASET
+        "src_%s.norm.trim.txt" % DATASET,
+        "src_%s.norm.trim.addsp.txt" % DATASET
     ]
 
-    js_trim, js_trim_fulltgt, cp_out_tks, cp_out_ids, ptrs_out, clean_tgt_trim, clean_tgt_trim_full, clean_src_trim = \
-        [os.path.join(BASE_DIR, f) for f in output_files]
+    js_trim, js_trim_fulltgt, \
+    cp_out_tks, cp_out_ids, ptrs_out, \
+    cp_out_tks_addsp, cp_out_ids_addsp, ptrs_out_addsp, \
+    clean_tgt_trim, clean_tgt_trim_full, clean_src_trim, \
+    clean_src_trim_addsp = [os.path.join(BASE_DIR, f) for f in output_files]
 
     player_not_found = 0
     sent_count = 0
@@ -691,24 +686,31 @@ def main(args, DATASET):
     dummy = 0
     too_long_or_short = 0
     filter_types = {}
-    with io.open(clean_src, 'r', encoding='utf-8') as fin_src, \
+    with jsonlines.open(js, 'r') as fin_js, \
+            io.open(clean_src, 'r', encoding='utf-8') as fin_src, \
+            io.open(clean_src_addsp, 'r', encoding='utf-8') as fin_src_addsp, \
             io.open(clean_tgt, 'r', encoding='utf-8') as fin_tgt, \
-            jsonlines.open(js, 'r') as fin_js, \
             io.open(js_trim, 'w+', encoding='utf-8') as fout_js_trim, \
             io.open(js_trim_fulltgt, 'w+', encoding='utf-8') as fout_js_full, \
             io.open(cp_out_tks, 'w+', encoding='utf-8') as fout_cp_tks, \
             io.open(cp_out_ids, 'w+', encoding='utf-8') as fout_cp_ids, \
             io.open(ptrs_out, 'w+', encoding='utf-8') as fout_ptr, \
+            io.open(cp_out_tks_addsp, 'w+', encoding='utf-8') as fout_cp_tks_addsp, \
+            io.open(cp_out_ids_addsp, 'w+', encoding='utf-8') as fout_cp_ids_addsp, \
+            io.open(ptrs_out_addsp, 'w+', encoding='utf-8') as fout_ptr_addsp, \
             io.open(clean_tgt_trim, 'w+', encoding='utf-8') as fout_tgt, \
             io.open(clean_tgt_trim_full, 'w+', encoding='utf-8') as fout_tgt_full, \
-            io.open(clean_src_trim, 'w+', encoding='utf-8') as fout_src:
+            io.open(clean_src_trim, 'w+', encoding='utf-8') as fout_src, \
+            io.open(clean_src_trim_addsp, 'w+', encoding='utf-8') as fout_src_addsp:
 
         output_table_trimtgt = []
         output_table_fulltgt = []
 
         original_summaries = fin_tgt.read().strip().split('\n')
         targets = original_summaries
-        inputs = fin_src.read().strip().split('\n')
+        #! by default using inputs appended with special nodes to extract
+        inputs = fin_src_addsp.read().strip().split('\n')
+        inputs_nosp = fin_src.read().strip().split('\n')
 
         team_names = []
         city_names = []
@@ -728,14 +730,16 @@ def main(args, DATASET):
             inputs = [x.lower() for x in inputs]
             targets = [x.lower() for x in targets]
 
-        for idx, (inp, summary, full_summary, table_original) in \
-                tqdm(enumerate(zip(inputs, targets, original_summaries, fin_js.iter(type=dict, skip_invalid=True)))):
+        #! processing each sample
+        for idx, (inp, inp_nosp, summary, full_summary, table_original) in \
+                tqdm(enumerate(zip(inputs, inputs_nosp, targets, original_summaries, fin_js.iter(type=dict, skip_invalid=True)))):
             city2team = {}
             current_sent_players = OrderedDict()
             current_sent_teams = OrderedDict()
 
             # ------ get record to index and str to record lookup ------ #
             rcd2idx = {}
+            entity2ha = _get_entity2ha(inp)
 
             if not len(inp.strip().split()) == RCD_PER_PLAYER*NUM_PLAYERS + RCD_PER_TEAM*NUM_TEAMS:
                 print(len(inp.strip().split()))
@@ -750,6 +754,8 @@ def main(args, DATASET):
                 if rcd in rcd2idx:
                     print("*** WARNING *** duplicate record at line # {}".format(i))
                 if not value.isdigit():
+                    if value in padding_token_lkt:  #! seems unnecessary
+                        continue
                     if not value in allstr2rcds:
                         allstr2rcds[value] = [rcd]
                     else:
@@ -781,16 +787,24 @@ def main(args, DATASET):
                         table['Players'][field].append(rcd)
 
             # ------ process each sentence ------ #
-            paragraph_plan = []
             paragraph_text = []
-            buffer = {'plan': [], 'text': None, 'pointer': []}
-            sentences = [x.strip() for x in summary.strip().split(' . ')]
             word_pos = 0
+            #! for ncpcc
+            paragraph_plan = []
             rcd_pos = 0
             pointers = []
+
+            #! for graph
+            paragraph_plan_addsp = []
+            rcd_pos_addsp = 0
+            pointers_addsp = []
+
+            buffer = {'plan': [], 'text': None, 'pointer': []}
+            sentences = [x.strip() for x in summary.strip().split(' . ')]
+
+            #! processing each sentence
             for cnt, sent in enumerate(sentences):
                 sent_count += 1
-
                 buffer, cat = dont_extract_this_sent(sentences, cnt, buffer, inp, allstr2rcds, table, city2team, alias2team, team_vocab, city_vocab)
                 filter_types.setdefault(cat, 0)
                 filter_types[cat] += 1
@@ -806,13 +820,8 @@ def main(args, DATASET):
                 # print("\n\n\n\n *** sent # {} *** is : \n{}".format(cnt, sent))
                 pre_check_player = [x for x in sent.strip().split() if x in table['Players']]
                 pre_check_team = [x for x in sent.strip().split() if x in table['Teams'] or x in city2team or x in alias2team]
-                # print("pre_check for this sent is {}".format(pre_check_player+pre_check_team))
 
                 # ------ extract player/team this sentence is talking about ------ #
-                this_sent_records = []
-                this_game_teams = list(table['Teams'].keys())
-                # print("this_game_teams = {}".format(this_game_teams))
-
                 if len(pre_check_player) > 0:
                     # only reset when new player is mentioned in this sent
                     current_sent_players = _build_current_sent_players(sent, table)
@@ -845,11 +854,13 @@ def main(args, DATASET):
                         # neither a new team is found nor a pronoun is referring to a previous team
                         current_sent_teams = OrderedDict()
 
+                this_sent_records = []
                 for player in current_sent_players.keys():
                     player_records = table['Players'][player]
                     this_sent_records.extend(player_records)
 
                 to_delete = []
+                this_game_teams = list(table['Teams'].keys())
                 for team in current_sent_teams.keys():
                     # keep track which team is mentioned, the other one might still be useful
                     if team in this_game_teams:
@@ -909,28 +920,137 @@ def main(args, DATASET):
                 '''
 
                 # ------ labeling stats patterns ------ #
-                sent = mark_records(sent)
+                unmarked_sent = sent
+                sent = mark_records(unmarked_sent)
 
                 phrases = []
-                sentence_plan = []
-                sentence_plan_numonly = []
                 starting_word_pos = word_pos
-                #! NOTE: applying lots of heuristics
+                sentence_plan_numonly = []
+                #! for ncpcc
+                sentence_plan = []
+                #! for graph
+                sentence_plan_addsp = []
+
+                #! processing tokens
                 for mwe in sent.strip().split():
                     # print('-'*10 + 'new mwe : {} ({}) '.format(mwe, word_pos) + '-'*10)
                     # include the player/team/city name (alias not available before feature extension)
                     if mwe in str2rcds:
-                        sentence_plan.append(str2rcds[mwe][0])
+                        if len(str2rcds[mwe]) == 1:
+                            this_rcd = str2rcds[mwe][0]
+
+                            if mwe not in special_nodes_lkt and mwe != 'led':
+                                #! only add to ncpcc if it's not special node
+                                sentence_plan.append(this_rcd)
+                                pointers.append(','.join(map(str, [word_pos, rcd_pos])))
+                                rcd_pos += 1
+
+                            #! add to addsp anyway
+                            # starters, bench, team_high are included here, 'led' has >1
+                            sentence_plan_addsp.append(this_rcd)
+                            pointers_addsp.append(','.join(map(str, [word_pos, rcd_pos_addsp])))
+                            rcd_pos_addsp += 1
+
+                        else:
+                            if mwe in special_nodes_lkt:
+                                #! only add to special
+                                #! assuming referring to the 1st mentioned team
+                                this_rcd = str2rcds[mwe][0]
+                                # however, if starters/bench were just mentioned, in the same sentence
+                                # chances are it's comparing two teams, so use the second one
+                                if this_rcd in sentence_plan:
+                                    this_rcd = str2rcds[mwe][-1]
+
+                                sentence_plan_addsp.append(this_rcd)
+                                pointers_addsp.append(','.join(map(str, [word_pos, rcd_pos_addsp])))
+                                rcd_pos_addsp += 1
+
+                            elif mwe == 'led':
+                                #! only add to special
+                                this_team = [i for i in current_sent_teams.keys()][0]
+                                if 'starters' in sent:
+                                    key = 'STARTERS'
+                                elif 'bench' in sent:
+                                    key = 'BENCH'
+                                else:
+                                    key = 'ALL'
+                                this_rcd = None
+                                for r in str2rcds['led']:
+                                    if key in r.split(DELIM)[2]:
+                                        this_rcd = r
+                                if this_rcd is None:
+                                    this_rcd = str2rcds['led'][0]
+
+                                sentence_plan_addsp.append(this_rcd)
+                                pointers_addsp.append(','.join(map(str, [word_pos, rcd_pos_addsp])))
+                                rcd_pos_addsp += 1
+
+                            else:
+                                #! same team name/city/day may be the next game team for playoffs
+                                this_rcd = str2rcds[mwe][0]
+                                for r in str2rcds[mwe]:
+                                    if not 'NEXT' in r.split(DELIM)[2]:
+                                        this_rcd = r
+
+                                #! add to both
+                                sentence_plan.append(this_rcd)
+                                pointers.append(','.join(map(str, [word_pos, rcd_pos])))
+                                rcd_pos += 1
+
+                                sentence_plan_addsp.append(this_rcd)
+                                pointers_addsp.append(','.join(map(str, [word_pos, rcd_pos_addsp])))
+                                rcd_pos_addsp += 1
+
+                            # print("\n{} --> {}".format(this_rcd, unmarked_sent))
+                            # print("{}".format(sentence_plan))
+                            # pprint(entity2ha)
+                            # pdb.set_trace()
+
                         phrases.append(mwe)
-                        pointers.append(','.join(map(str, [word_pos, rcd_pos])))
                         word_pos += 1
-                        rcd_pos += 1
+
+                    elif mwe in special_nodes_lkt or mwe == 'led':
+                        if len(current_sent_players) == 0:
+                            #! no idea who's leading what
+                            continue
+                        else:
+                            #! assuming referring to the 1st mentioned player
+                            player = [i for i in current_sent_players.keys()][0]
+                            ha = entity2ha[player]
+                            if mwe != 'led':
+                                for r in allstr2rcds[mwe]:
+                                    if r.split(DELIM)[-1] == ha:
+                                        this_rcd = r
+                            else:
+                                if 'starters' in sent:
+                                    key = 'STARTERS'
+                                elif 'bench' in sent:
+                                    key = 'BENCH'
+                                else:
+                                    key = 'ALL'
+                                this_rcd = None
+                                for r in allstr2rcds['led']:
+                                    if key in r.split(DELIM)[2]:
+                                        this_rcd = r
+                                if this_rcd is None:
+                                    this_rcd = allstr2rcds['led'][0]
+
+                        # print("\n{} --> {}".format(this_rcd, unmarked_sent))
+                        # print("{}".format(sentence_plan))
+                        # pprint(entity2ha)
+                        # pdb.set_trace()
+                        sentence_plan_addsp.append(this_rcd)
+                        pointers_addsp.append(','.join(map(str, [word_pos, rcd_pos])))
+                        rcd_pos_addsp += 1
+                        phrases.append(mwe)
+                        word_pos += 1
 
                     elif mwe.startswith("#DELIM"):
                         # print("just before calling get_records: \n num2rcds = {}\n str2rcds = {}".format(num2rcds, str2rcds))
                         records, phrase, numbers_are_at = get_records(mwe, num2rcds, the_other_team_records)
                         if len(records) > 0:
                             sentence_plan.extend(records)
+                            sentence_plan_addsp.extend(records)  #! for graph
                             sentence_plan_numonly.extend(records)
                             if not len(numbers_are_at) == len(records):
                                 print(numbers_are_at)
@@ -939,10 +1059,12 @@ def main(args, DATASET):
                             for n in numbers_are_at:
                                 pointers.append(','.join(map(str, [word_pos + n, rcd_pos])))
                                 rcd_pos += 1
+                                pointers_addsp.append(','.join(map(str, [word_pos + n, rcd_pos_addsp]))) #! for graph
+                                rcd_pos_addsp += 1  #! for graph
+
                                 # print("numbers_are_at = {}".format(numbers_are_at))
                                 # print("pointers = {}".format(pointers))
 
-                                # print(sentence_plan)
                         phrases.append(phrase)
                         word_pos += len(phrase.split())
 
@@ -961,6 +1083,7 @@ def main(args, DATASET):
                             records, phrase, numbers_are_at = get_records(mwe, num2rcds, the_other_team_records)
                             if len(records) > 0:
                                 sentence_plan.extend(records)
+                                sentence_plan_addsp.extend(records)  #! for graph
                                 sentence_plan_numonly.extend(records)
                                 if not len(numbers_are_at) == len(records):
                                     print(numbers_are_at)
@@ -969,10 +1092,11 @@ def main(args, DATASET):
                                 for n in numbers_are_at:
                                     pointers.append(','.join(map(str, [word_pos + n, rcd_pos])))
                                     rcd_pos += 1
+                                    pointers_addsp.append(','.join(map(str, [word_pos + n, rcd_pos_addsp]))) #! for graph
+                                    rcd_pos_addsp += 1  #! for graph
                                     # print("numbers_are_at = {}".format(numbers_are_at))
                                     # print("pointers = {}".format(pointers))
 
-                                    # print(sentence_plan)
                             phrases.append(phrase)
                             word_pos += len(phrase.split())
 
@@ -997,9 +1121,12 @@ def main(args, DATASET):
                         if best_guess is not None:
                             dummy += 1
                             sentence_plan.append(best_guess)
+                            sentence_plan_addsp.append(best_guess)  #! for graph
                             sentence_plan_numonly.append(best_guess)
                             pointers.append(','.join(map(str, [word_pos, rcd_pos])))
                             rcd_pos += 1
+                            pointers_addsp.append(','.join(map(str, [word_pos, rcd_pos_addsp]))) #! for graph
+                            rcd_pos_addsp += 1  #! for graph
 
                 # filter out sentences with nothing found for the player/team
                 if len(sentence_plan_numonly) > 0:
@@ -1008,12 +1135,17 @@ def main(args, DATASET):
                         # print('adding contents in buffer = {}'.format(buffer))
                         paragraph_text.append(buffer['text'])
                         paragraph_plan.extend(buffer['plan'])
+                        paragraph_plan_addsp.extend(buffer['plan'])
                         for p in buffer['pointer']:
                             pointers.append(','.join(map(str, [word_pos + p, rcd_pos])))
                             rcd_pos += 1
+                            pointers_addsp.append(','.join(map(str, [word_pos + p, rcd_pos_addsp]))) #! for graph
+                            rcd_pos_addsp += 1  #! for graph
+
                         word_pos += len(buffer['text'].split())
 
                     paragraph_plan.extend(sentence_plan)
+                    paragraph_plan_addsp.extend(sentence_plan_addsp)
                     correct_sent = ' '.join(phrases)
                     paragraph_text.append(correct_sent)
                     # increment by 1 for '.' at end of sentence
@@ -1028,6 +1160,10 @@ def main(args, DATASET):
                         # print("*** warning *** last pointer removed at word_pos = {}".format(word_pos))
                         pointers.pop(-1)
                         rcd_pos -= 1
+                    for _ in range(len(sentence_plan_addsp)):
+                        pointers_addsp.pop(-1)
+                        rcd_pos_addsp -= 1  #! for graph
+
                         # print("After popping: {}".format(pointers))
 
                 # NOTE: clear the buffer no matter what
@@ -1038,13 +1174,16 @@ def main(args, DATASET):
                 # print('adding contents in buffer = {}'.format(buffer))
                 paragraph_text.append(buffer['text'])
                 paragraph_plan.extend(buffer['plan'])
+                paragraph_plan_addsp.extend(buffer['plan'])
                 for p in buffer['pointer']:
                     pointers.append(','.join(map(str, [word_pos + p, rcd_pos])))
                     rcd_pos += 1
+                    pointers_addsp.append(','.join(map(str, [word_pos + p, rcd_pos_addsp]))) #! for graph
+                    rcd_pos_addsp += 1  #! for graph
+
                 word_pos += len(buffer['text'].split())
 
             paragraph_plan_ids = [rcd2idx[rcd] for rcd in paragraph_plan]
-
             if not len(paragraph_plan) == len(paragraph_plan_ids) == len(pointers):
                 print("\nparagraph_text: \n{}".format(paragraph_text))
                 print(len(paragraph_plan))
@@ -1052,6 +1191,16 @@ def main(args, DATASET):
                 print("\nparagraph_plan: \n{}".format(paragraph_plan))
                 print("\npointers: {}\n".format(pointers))
                 print(len(pointers))
+                pdb.set_trace()
+
+            paragraph_plan_addsp_ids = [rcd2idx[rcd] for rcd in paragraph_plan_addsp]
+            if not len(paragraph_plan_addsp) == len(paragraph_plan_addsp_ids) == len(pointers_addsp):
+                print("\nparagraph_text: \n{}".format(paragraph_text))
+                print(len(paragraph_plan_addsp))
+                print(len(paragraph_plan_addsp_ids))
+                print("\nparagraph_plan_addsp: \n{}".format(paragraph_plan_addsp))
+                print("\npointers_addsp: {}\n".format(pointers_addsp))
+                print(len(pointers_addsp))
                 pdb.set_trace()
 
             paragraph_text = ' . '.join(paragraph_text).strip()
@@ -1064,8 +1213,15 @@ def main(args, DATASET):
                 to_write = True
                 paragraph_plan_ids = ' '.join(paragraph_plan_ids)
                 paragraph_plan = ' '.join(paragraph_plan)
+
+                paragraph_plan_addsp_ids = ' '.join(paragraph_plan_addsp_ids)
+                paragraph_plan_addsp = ' '.join(paragraph_plan_addsp)
+
                 pointers = ' '.join(map(str, pointers))
-                fout_src.write("{}\n".format(inp.strip()))
+                pointers_addsp = ' '.join(map(str, pointers_addsp))
+
+                fout_src.write("{}\n".format(inp_nosp.strip()))
+                fout_src_addsp.write("{}\n".format(inp.strip()))
 
             else:
                 to_write = False
@@ -1085,11 +1241,18 @@ def main(args, DATASET):
                 temp_table['summary'] = paragraph_text.split()  # substituting the trimmed summary
                 output_table_trimtgt.append(temp_table)
 
+                #! for ncpcc
                 fout_cp_ids.write("{}\n".format(paragraph_plan_ids))
                 fout_cp_tks.write("{}\n".format(paragraph_plan))
+                fout_ptr.write("{}\n".format(pointers))
+
+                #! for graph
+                fout_cp_ids_addsp.write("{}\n".format(paragraph_plan_addsp_ids))
+                fout_cp_tks_addsp.write("{}\n".format(paragraph_plan_addsp))
+                fout_ptr_addsp.write("{}\n".format(pointers_addsp))
+
                 fout_tgt.write("{}\n".format(paragraph_text))
                 fout_tgt_full.write("{}\n".format(full_summary.strip()))
-                fout_ptr.write("{}\n".format(pointers))
 
         json.dump(output_table_fulltgt, fout_js_full)
         json.dump(output_table_trimtgt, fout_js_trim)

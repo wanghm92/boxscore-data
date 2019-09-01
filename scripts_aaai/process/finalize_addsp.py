@@ -22,62 +22,53 @@ def main(args, DATASET):
     BASE_DIR = os.path.join(args.dir, "{}".format(DATASET))
 
     input_files = [
-        "src_%s.norm.trim.txt" % DATASET,
-        "%s_content_plan_ids.txt" % DATASET,
-        "%s_content_plan_tks.txt" % DATASET,
-        "%s_ptrs.txt" % DATASET,  # for checking only
-        "tgt_%s.norm.mwe.trim.txt" % DATASET,
-        "%s.trim.json" % DATASET
+        "src_%s.norm.trim.addsp.txt" % DATASET,
+        "%s_content_plan_ids.addsp.txt" % DATASET,
+        "%s_content_plan_tks.addsp.txt" % DATASET,
+        "%s_ptrs.addsp.txt" % DATASET,  # for checking only
     ]
 
-    trim_src, cp_in_ids, cp_in_tks, ptrs_in, clean_tgt_trim, js_trim = [os.path.join(BASE_DIR, f) for f in input_files]
+    trim_src, cp_in_ids, cp_in_tks, ptrs_in = [os.path.join(BASE_DIR, f) for f in input_files]
 
     output_files = [
-        "src_%s.norm.trim.nona.txt" % DATASET,
-        "src_%s.norm.trim.ncp.full.txt" % DATASET,
-        "src_%s.norm.trim.ncp.nona.txt" % DATASET,
-        "%s_content_plan_ids.nona.txt" % DATASET,
-        "%s_content_plan_ids.ncp.full.txt" % DATASET,
-        "%s_content_plan_ids.ncp.nona.txt" % DATASET,
-        "tgt_%s.norm.tk.trim.txt" % DATASET,
-        "%s.trim.ws.json" % DATASET
+        "src_%s.norm.trim.addsp.nona.txt" % DATASET,
+        "src_%s.norm.trim.addsp.ncp.full.txt" % DATASET,
+        "src_%s.norm.trim.addsp.ncp.nona.txt" % DATASET,
+        "%s_content_plan_ids.addsp.nona.txt" % DATASET,
+        "%s_content_plan_ids.addsp.ncp.full.txt" % DATASET,
+        "%s_content_plan_ids.addsp.ncp.nona.txt" % DATASET,
     ]
 
     src_out_nona, src_out_ncp_full, src_out_ncp_nona, \
-    cp_out_ids_nona, cp_out_ids_ncp_full, cp_out_ids_ncp_nona,\
-    clean_tgt_trim_tk, js_trim_tk = \
+    cp_out_ids_nona, cp_out_ids_ncp_full, cp_out_ids_ncp_nona = \
         [os.path.join(BASE_DIR, f) for f in output_files]  #! NOTE: last two are for ws17
 
     with io.open(trim_src, 'r', encoding='utf-8') as fin_src, \
             io.open(cp_in_ids, 'r', encoding='utf-8') as fin_cp_ids, \
             io.open(cp_in_tks, 'r', encoding='utf-8') as fin_cp_tks, \
             io.open(ptrs_in, 'r', encoding='utf-8') as fin_ptr, \
-            io.open(js_trim, 'r', encoding='utf-8') as fin_js, \
             io.open(src_out_nona, 'w+', encoding='utf-8') as fout_src_nona, \
             io.open(src_out_ncp_full, 'w+', encoding='utf-8') as fout_src_ncp_full, \
             io.open(src_out_ncp_nona, 'w+', encoding='utf-8') as fout_src_ncp_nona, \
             io.open(cp_out_ids_nona, 'w+', encoding='utf-8') as fout_cp_nona, \
             io.open(cp_out_ids_ncp_full, 'w+', encoding='utf-8') as fout_cp_ncp_full, \
-            io.open(cp_out_ids_ncp_nona, 'w+', encoding='utf-8') as fout_cp_ncp_nona, \
-            io.open(js_trim_tk, 'w+', encoding='utf-8') as fout_js:
+            io.open(cp_out_ids_ncp_nona, 'w+', encoding='utf-8') as fout_cp_ncp_nona:
 
         source = fin_src.read().strip().split('\n')
         content_plan_ids = fin_cp_ids.read().strip().split('\n')
         content_plan_tks = fin_cp_tks.read().strip().split('\n')
         pointers = fin_ptr.read().strip().split('\n')
-        tables = json.load(fin_js)
 
         print(len(source))
         print(len(content_plan_ids))
         print(len(content_plan_tks))
         print(len(pointers))
-        print(len(tables))
 
-        assert len(source) == len(content_plan_ids) == len(pointers) == len(tables)
+        assert len(source) == len(content_plan_ids) == len(pointers)
 
         tokenized_tables = []
-        for src_full, cp_ids, cp_tks, ptr, tbl in \
-                tqdm(zip(source, content_plan_ids, content_plan_tks, pointers, tables)):
+        for src_full, cp_ids, cp_tks, ptr in \
+                tqdm(zip(source, content_plan_ids, content_plan_tks, pointers)):
             assert len(cp_ids.split()) == len(cp_tks.split()) == len(ptr.split())
 
             # --- processing input records --- #
@@ -106,38 +97,9 @@ def main(args, DATASET):
             ncp_cp_ids_nona = [str(int(x) + 4) for x in cp_ids_nona]
             fout_cp_ncp_nona.write("{}\n".format(' '.join(ncp_cp_ids_nona)))
 
-            # --- processing json tables --- #
-            tmp = copy.deepcopy(tbl)
-            tokens = []
-            for mwe in tbl['summary']:
-                tokens.extend(mwe.split('_'))
-            tmp['summary'] = tokens
-
-            first_names = copy.deepcopy(tbl['box_score']['FIRST_NAME'])
-            for idx, n in tbl['box_score']['FIRST_NAME'].items():
-                n.replace('.', '')
-                first_names[idx] = n
-
-            tmp['box_score']['<blank>'] = {str(k): '<blank>' for k in range(len(tmp['box_score']['FIRST_NAME']))}
-
-            tmp['box_score']['FIRST_NAME'] = first_names
-
-            tokenized_tables.append(tmp)
-
-        print("dumping tokenized table ...")
-        json.dump(tokenized_tables, fout_js)
-
-    with io.open(clean_tgt_trim, 'r', encoding='utf-8') as fin, \
-            io.open(clean_tgt_trim_tk, 'w+', encoding='utf-8') as fout:
-        targets = fin.read().strip().split('\n')
-        for summary in targets:
-            output = summary.replace('_', ' ')
-            fout.write("{}\n".format(output))
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
-    parser.add_argument('--dir', type=str, default='../new_dataset/new_extend/',
+    parser.add_argument('--dir', type=str, default='../new_dataset/new_extend_addsp/',
                         help='directory of src/tgt_train/valid/test.txt files')
     args = parser.parse_args()
 

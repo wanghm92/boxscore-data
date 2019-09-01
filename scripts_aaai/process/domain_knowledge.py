@@ -148,4 +148,6 @@ class Domain_Knowledge:
             'TEAM-NEXT_NAME', 'TEAM-NEXT_CITY', 'TEAM-NEXT_DAY', 'TEAM-NEXT_HA'
         ]
 
+        self.line_keys_more = ['TEAM-STARTERS', 'TEAM-STARTERS_LEAD', 'TEAM-BENCH', 'TEAM-BENCH_LEAD', 'TEAM-ALL_LEAD', 'TEAM-ALL_HIGH']
+
 

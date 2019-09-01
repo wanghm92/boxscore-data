@@ -505,12 +505,36 @@ def _update_linescores(records_feat, tbl):
     return out
 
 
-def main(js, src, tgt, src_out, json_out):
+def _add_special_nodes(records):
+
+    #! get home/away team first
+    ha2team = {'HOME': None, 'AWAY':None}
+    for idx, rcd in enumerate(records):
+        value, field, rcd_type, ha = rcd.split(DELIM)
+        if rcd_type == 'TEAM-NAME':
+            ha2team[ha] = rcd
+
+    #! add special nodes
+    for i in ['HOME', 'AWAY']:
+        teamname = ha2team[i].split(DELIM)[1]
+        start_rcd = DELIM.join(['starters', teamname, 'TEAM-STARTERS', i])
+        start_led = DELIM.join(['led', teamname, 'TEAM-STARTERS_LEAD', i])
+        bench_rcd = DELIM.join(['bench', teamname, 'TEAM-BENCH', i])
+        bench_led = DELIM.join(['led', teamname, 'TEAM-BENCH_LEAD', i])
+        team_led = DELIM.join(['led', teamname, 'TEAM-ALL_LEAD', i])
+        team_high = DELIM.join(['team_high', teamname, 'TEAM-ALL_HIGH', i])
+        records.extend([start_rcd, start_led, bench_rcd, bench_led, team_led, team_high])
+
+    return records
+
+
+def main(js, src, tgt, src_out, src_addsp_out, json_out):
 
     with jsonlines.open(js, 'r') as fin_js, \
             io.open(src, 'r', encoding='utf-8') as fin_src, \
             io.open(tgt, 'r', encoding='utf-8') as fin_tgt, \
             io.open(src_out, 'w+', encoding='utf-8') as fout, \
+            io.open(src_addsp_out, 'w+', encoding='utf-8') as fout_addsp, \
             jsonlines.open(json_out, 'w') as fout_js:
 
         targets = fin_tgt.read()
@@ -526,8 +550,6 @@ def main(js, src, tgt, src_out, json_out):
         if LOWER:
             inputs = [x.lower() for x in inputs]
             targets = [x.lower() for x in targets]
-
-        output = []
 
         for idx, (tbl, inp, summary) in tqdm(enumerate(zip(tables, inputs, targets))):
             records = inp.strip().split()
@@ -547,18 +569,17 @@ def main(js, src, tgt, src_out, json_out):
             # (5) Team schedules
             records_feat = get_next_games(records_feat, tbl, summary)
 
-            output.append(' '.join(records_feat))
+            fout.write("{}\n".format(' '.join(records_feat)))
             # print(len(records_feat))
             # _print_additional_rcdtypes(records, records_feat)
             tbl_out = _update_linescores(records_feat, tbl)
             # print(tbl_out['home_line'].keys())
             fout_js.write(tbl_out)
 
-        pprint(no_next)
-        # pdb.set_trace()
+            records_addsp = _add_special_nodes(records_feat)
+            fout_addsp.write("{}\n".format(' '.join(records_addsp)))
 
-        for s in output:
-            fout.write("{}\n".format(s))
+        pprint(no_next)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
@@ -587,9 +608,10 @@ if __name__ == "__main__":
 
         output_files = [
             "src_%s.norm.ext.txt" % DATASET,
+            "src_%s.norm.ext.addsp.txt" % DATASET,
             "%s.ext.jsonl" % DATASET,
         ]
 
-        src_out, json_out = [os.path.join(OUT_DIR, f) for f in output_files]
+        src_out, src_addsp_out, json_out = [os.path.join(OUT_DIR, f) for f in output_files]
 
-        main(js, src, tgt, src_out, json_out)
+        main(js, src, tgt, src_out, src_addsp_out, json_out)

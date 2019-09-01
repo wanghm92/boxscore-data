@@ -17,26 +17,26 @@ EOS_WORD = '</s>'
 # [done] team <-> team and player <-> player: same rcd_type: >=<
 # Edges:
 1. START vs BENCH:
-    !+ [pending] Teams <-has-> START/BENCH <-has-> Players
-    !+ [pending] START/BENCH SUMS <-led_by-> Top player PTS
+    + [optional] Teams <-has-> START/BENCH <-has-> Players
+    + [done] START/BENCH SUMS <-led_by-> Top player PTS
     + [done] START/BENCH <-lead-> Best_Player (or Best_Player PTS)
     + [done] Teams <-lead-> Best_Player (or Best_Player PTS)
     + [done] START/BENCH SUM_PTS <-compare-> START/BENCH SUM_PTS across teams
-    !+ [pending] verbalized edge for STARTERS/BENCH:
+    + [done] verbalized edge for STARTERS/BENCH:
         (p|P)oint guard,
         (s|S)hooting guard,
         (s|S)mall forward,
         (P|p)ower forward,
         center(/Center)
-        'the second unit' --> bench
+        [done] 'the second unit' --> bench
         (1k+ tokens in train)
-    !+ [pending] verbalized edge for led_by
+    + [done] verbalized edge for led_by
 
 2. others:
     + [done] team --> DIFFs
     + [optional] remove N/A players and nodes
-    !+ [pending] WINNER
-    !+ [pending] STAR/MVP
+    + [optional] WINNER
+    + [optional] STAR/MVP
 """
 
 line_numkeys = [
@@ -54,6 +54,7 @@ line_numkeys = [
 print("line_numkeys: {}".format(len(line_numkeys)))
 
 line_otherkeys = [
+    'TEAM-STARTERS', 'TEAM-STARTERS_LEAD', 'TEAM-BENCH', 'TEAM-BENCH_LEAD', 'TEAM-ALL_LEAD', 'TEAM-ALL_HIGH',
     'TEAM-WINS', 'TEAM-LOSSES',
     'TEAM-ALIAS', 'TEAM-ARENA', 'TEAM-CITY',
     'TEAM-NAME'
@@ -92,6 +93,7 @@ box_leadkeys = [
 ]
 print("box_leadkeys: {}".format(len(box_leadkeys)))
 
+
 def _get_lookups(records):
     """
     Input:
@@ -109,17 +111,26 @@ def _get_lookups(records):
     entity2nodes = {}
     ha2player = {'HOME':[], 'AWAY': []}
     ha2team = {'HOME': None, 'AWAY':None}
+
+    #! get home/away team first
     for idx, rcd in enumerate(records):
-        node2idx[rcd] = idx
+        value, field, rcd_type, ha = rcd.split(DELIM)
+        if rcd_type == 'TEAM-NAME':
+            ha2team[ha] = rcd
+
+    for idx, rcd in enumerate(records):
         value, field, rcd_type, ha = rcd.split(DELIM)
         meta = DELIM.join([field, rcd_type, ha])
-        meta2idx[meta] = idx  #! NOTE: meta may not be unique for N/A and <blank> players
+
+        if not rcd in node2idx:
+            node2idx[rcd] = idx
+            meta2idx[meta] = idx  #! meta may not be unique for N/A and <blank> players
+        else:
+            assert meta in meta2idx
 
         entity2nodes.setdefault(field, {rcd_type: (value, rcd)})
         entity2nodes[field][rcd_type] = (value, rcd)
 
-        if rcd_type == 'TEAM-NAME':
-            ha2team[ha] = rcd
         if rcd_type == 'PLAYER_NAME':
             ha2player[ha].append(rcd)
 
@@ -148,6 +159,7 @@ def _get_pairwise(left, right, rcd_types, entity2nodes, node2idx, direction):
         right_idx = node2idx[right_node]
 
         #! NOTE: (i, j) is an edge i --> j with label '>' if val(i) > val(j), else '='
+        # using the same 'greater' edge type in directed graph technically makes no difference
         if left_val == 'N/A':
             if right_val.isdigit():
                 # right > left
@@ -322,36 +334,58 @@ def _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, 
         team_rcd_type = "TEAM-{}".format(rcd_type)
         for ha in ['HOME', 'AWAY']:
             team = ha2team[ha]  # the TEAM_NAME node
-            teamname, teamentity, _, _ = team.split(DELIM)
-            team_meta = DELIM.join([teamentity, team_rcd_type, ha])
 
+            #! add TEAM-TYPE --> PLAYER-TYPE
+            lead_players = player_rankings[rcd_type][ha]['ALL']
+            _, teamentity, _, _ = team.split(DELIM)
+            team_rcd_meta = DELIM.join([teamentity, team_rcd_type, ha])
+            team_rcd_id = meta2idx[team_rcd_meta]
+            for idx, (_, _, rcd) in enumerate(lead_players):
+                rcd_id = node2idx[rcd]
+                edges[(team_rcd_id, rcd_id)] = labels[idx]
+
+            #! add TEAM-NAME --> PLAYER NAME for ALL, START, BENCH lead players
+            team_id = node2idx[team]  # the TEAM_NAME node
             if rcd_type == 'PTS':
-                # TEAM to top 3, START to top 3, BENCH to top3
-                team_id = node2idx[team]  # the TEAM_NAME node
+                #! TEAM_NAME --> 2nd & 3rd PLAYER_NAME
                 lead_players = player_rankings[rcd_type][ha]['ALL']
                 for idx, (p, _, _) in enumerate(lead_players):
                     player_id = node2idx[p]
                     edges[(team_id, player_id)] = labels[idx]
+                #! TEAM_NAME --> 1st PLAYER_NAME (two possible verbalizations)
+                first_player_id = node2idx[lead_players[0][0]]  # PLAYER_NAME
+                team_led = DELIM.join(['led', teamentity, 'TEAM-ALL_LEAD', ha])
+                team_led_id = node2idx[team_led]
+                edges[(team_led_id, first_player_id)] = 'led_by'
+                team_high = DELIM.join(['team_high', teamentity, 'TEAM-ALL_HIGH', ha])
+                team_high_id = node2idx[team_high]
+                edges[(team_high_id, first_player_id)] = 'led_by'
 
-                start_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-START', ha])
-                start_id = meta2idx[start_meta]
+                #! SUM-START --> 1/2/3 PLAYER PTS
+                start_pts_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-START', ha])
+                start_pts_id = meta2idx[start_pts_meta]
                 lead_starters = player_rankings[rcd_type][ha]['START']
-                for idx, (p, _, _) in enumerate(lead_starters):
-                    player_id = node2idx[p]
-                    edges[(start_id, player_id)] = labels[idx]
+                for idx, (_, _, rcd) in enumerate(lead_starters):
+                    rcd_id = node2idx[rcd]
+                    edges[(start_pts_id, rcd_id)] = labels[idx]
+                #! TEAM-STARTERS-LEAD --> 1st PLAYER_NAME
+                first_starter_id = node2idx[lead_starters[0][0]]  # PLAYER_NAME
+                starter_led = DELIM.join(['led', teamentity, 'TEAM-STARTERS_LEAD', ha])
+                starter_led_id = node2idx[starter_led]
+                edges[(starter_led_id, first_starter_id)] = 'led_by'
 
-                bench_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-BENCH', ha])
-                bench_id = meta2idx[bench_meta]
-                lead_benchers = player_rankings[rcd_type][ha]['START']
-                for idx, (p, _, _) in enumerate(lead_benchers):
-                    player_id = node2idx[p]
-                    edges[(bench_id, player_id)] = labels[idx]
-
-            lead_players = player_rankings[rcd_type][ha]['ALL']
-            for idx, (name, value, rcd) in enumerate(lead_players):
-                rcd_id = node2idx[rcd]
-                team_id = meta2idx[team_meta]  # the TEAM_NAME node
-                edges[(team_id, rcd_id)] = labels[idx]
+                #! SUM-BENCH --> 1/2/3 PLAYER PTS
+                bench_pts_meta = DELIM.join([teamentity, 'TEAM-PTS_SUM-BENCH', ha])
+                bench_pts_id = meta2idx[bench_pts_meta]
+                lead_benchers = player_rankings[rcd_type][ha]['BENCH']
+                for idx, (_, _, rcd) in enumerate(lead_benchers):
+                    rcd_id = node2idx[rcd]
+                    edges[(bench_pts_id, rcd_id)] = labels[idx]
+                #! TEAM-BENCH-LEAD --> 1st PLAYER_NAME
+                first_bench_id = node2idx[lead_benchers[0][0]]  # PLAYER_NAME
+                bench_led = DELIM.join(['led', teamentity, 'TEAM-BENCH_LEAD', ha])
+                bench_led_id = node2idx[bench_led]
+                edges[(bench_led_id, first_bench_id)] = 'led_by'
 
     return edges, mentioned, cnt, remaining
 
@@ -366,7 +400,8 @@ def _get_norms(edges):
         'has_record': 1.0/4,
         'top_1': 1.0/4,
         'top_2': 1.0/4,
-        'top_3': 1.0/4
+        'top_3': 1.0/4,
+        'led_by': 1.0/4,
     }
 
     sink2norms = {}
@@ -379,7 +414,8 @@ def _get_norms(edges):
                 'has_record': [],
                 'top_1': [],
                 'top_2': [],
-                'top_3': []
+                'top_3': [],
+                'led_by': []
             }
         sink2norms[sink][label].append(src)
 
@@ -408,16 +444,23 @@ def _get_norms(edges):
 
     return edges_with_norms
 
-def _sanity_check(edges, records):
+
+def _sanity_check(edges, records, has_norm=False):
     import pandas as pd
-    temp = {'left':[], 'label':[], 'right':[], 'norm':[]}
-    for (left, right), (label, norm) in edges.items():
+    temp = {'left':[], 'label':[], 'right':[]}
+    if has_norm:
+        temp['norm'] = []
+    for (left, right), value in edges.items():
         temp['left'].append(records[left])
         temp['right'].append(records[right])
+        if has_norm:
+            label, norm = value
+            temp['norm'].append(norm)
+        else:
+            label = value
         temp['label'].append(label)
-        temp['norm'].append(norm)
 
-    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+    print("\n")
     print(pd.DataFrame(temp).to_string())
     import pdb
     pdb.set_trace()
@@ -442,11 +485,11 @@ if __name__ == "__main__":
         remaining = 0
         mentioned = dict.fromkeys(box_leadkeys, None)
 
-        fname = "{}/scripts_{}/new_dataset/new_ncpcc/{}/src_{}.norm.trim.ncp.full.txt"\
+        fname = "{}/scripts_{}/new_dataset/new_extend_addsp/{}/src_{}.norm.trim.addsp.ncp.full.txt"\
             .format(BASE, args.dataset, DATA, DATA)
-        cpname = "{}/scripts_{}/new_dataset/new_ncpcc/{}/{}_content_plan_tks.txt"\
-            .format(BASE, args.dataset, DATA, DATA)
-        fout = "{}/scripts_{}/new_dataset/new_ncpcc/{}/edges_{}.ncp.new.direction-{}.newnorms.jsonl"\
+        cpname = "{}/scripts_{}/new_dataset/new_extend_addsp/{}/{}_content_plan_tks.addsp.txt"\
+            .format(BASE, args.dataset, DATA, DATA)  # only for counting
+        fout = "{}/scripts_{}/new_dataset/new_extend_addsp/{}/edges_{}.ncp.new.direction-{}.newnorms.addsp.jsonl"\
             .format(BASE, args.dataset, DATA, DATA, args.direction)
 
         with io.open(fname, 'r', encoding='utf-8') as fin, io.open(cpname, 'r', encoding='utf-8') as cpfin, \
@@ -478,7 +521,8 @@ if __name__ == "__main__":
                 other_edges = _get_other_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team)
                 # _sanity_check(other_edges, records)
                 edges.update(other_edges)
-
+                # import pdb
+                # pdb.set_trace()
                 lead_edge, mentioned, temp, tmp = _get_lead_edges(node2idx, meta2idx, entity2nodes, ha2player, ha2team, plan, mentioned)
                 # _sanity_check(lead_edge, records)
                 edges.update(lead_edge)

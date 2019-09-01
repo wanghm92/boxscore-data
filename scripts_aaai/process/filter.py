@@ -119,21 +119,12 @@ def _build_buffer_next(buffer, this, allstr2rcds, table, city2team, alias2team, 
                 buffer['plan'].append(teamstr2rcds[tk])
                 buffer['pointer'].append(idx)
 
-    # if buffer['plan'] and 'home' in this:
-    # if buffer['plan'] and 'home' in this or 'away' in this:
-    #     pprint(buffer)
-    #     print(allstr2rcds.keys())
-    #     print(allstr2rcds.get('home', None))
-    #     print(allstr2rcds.get('away', None))
-    #     if len(this.split(',')) == 1:
-    #         import pdb
-    #         pdb.set_trace()
     return buffer
 
 def _build_buffer_general(buffer, this, allstr2rcds):
     buffer['text'] = this
     for idx, tk in enumerate(this.split()):
-        if tk in ['home', 'away']:
+        if tk in ['home', 'away', 'bench', 'starters', 'led', 'team_high']:
             continue
         if tk in allstr2rcds:
             buffer['plan'].append(allstr2rcds[tk][0])
