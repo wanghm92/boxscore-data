@@ -564,7 +564,7 @@ def compute_rg_cs_co(gold_outlines, hypo_outlines, inputs):
 # -------------- #
 RCD_PER_PLAYER = 21
 NUM_PLAYERS = 26
-RCD_PER_TEAM = 44
+RCD_PER_TEAM = 50
 NUM_TEAMS = 2
 
 alias2team = knowledge_container.alias2team
@@ -614,10 +614,9 @@ def main(args):
             planner_output = fin.read().strip().split('\n')
 
     input_files = [
-        "src_%s.norm.trim.ncp.full.txt" % args.dataset,
-        "%s_content_plan_tks.txt" % args.dataset,
+        "src_%s.norm.trim.addsp.ncp.full.txt" % args.dataset,
+        "%s_content_plan_tks.addsp.txt" % args.dataset,
         "%s.trim.json" % args.dataset,
-
     ]
 
     BASE_DIR = os.path.join(args.path, "{}".format(args.dataset))
