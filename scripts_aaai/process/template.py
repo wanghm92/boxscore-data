@@ -254,7 +254,7 @@ def _get_team_items(ha2team, entity2nodes):
     return first_items, home_next_items, away_next_items
 
 
-def _get_players(player_rankings):
+def _get_players(player_rankings, k):
     players = []
 
     for ha in ['HOME', 'AWAY']:
@@ -266,8 +266,8 @@ def _get_players(player_rankings):
                 if not l in seen:
                     seen.add(l)
                     this.append(l)
-            if len(this) >= 4:
-                this = this[:4]
+            if len(this) >= k:
+                this = this[:k]
                 break
         players.extend(this)
 
@@ -286,7 +286,7 @@ def _get_player_items(player, entity2nodes):
 
     return name, fgm, fga, pts, rebounds, assists, steals, minutes
 
-def rule_gen(player_rankings, ha2team, node2idx, entity2nodes):
+def rule_gen(player_rankings, ha2team, node2idx, entity2nodes, k=4):
 
     # --- first sentence --- #
     first_items, home_next_items, away_next_items = _get_team_items(ha2team, entity2nodes)
@@ -294,7 +294,7 @@ def rule_gen(player_rankings, ha2team, node2idx, entity2nodes):
 
     # --- player sentence --- #
     ret = [first_line]
-    for player in _get_players(player_rankings):
+    for player in _get_players(player_rankings, k):
         player_items = _get_player_items(player, entity2nodes)
         player_line = "{} went {} - for - {} from the field , scored {} points , {} rebounds , {} assists , {} steals in {} minutes .".format(*player_items)
         ret.append(player_line)
@@ -325,6 +325,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='clean')
     parser.add_argument('--dataset', required=True, choices=['inlg', 'aaai'],
                         help='which dataset to take in')
+    parser.add_argument('--k', type=int)
     args = parser.parse_args()
 
     if args.dataset == 'aaai':
@@ -371,10 +372,113 @@ if __name__ == "__main__":
                 accum += _accum
                 correct += _correct
 
-                summary = rule_gen(player_rankings, ha2team, node2idx, entity2nodes)
+                summary = rule_gen(player_rankings, ha2team, node2idx, entity2nodes, k=args.k)
                 fout.write("{}\n".format(summary))
 
         print("{} out of {} are not top3 players {:0.2f} %".format(remaining, total, 100-100.0*remaining/total))
         print("{} out of {} top3 players {:0.2f} % are mentioned".format(correct, accum, 100.0*correct/accum))
 
         _print_upper_bounds(cp_cnt, 9, len(outlines), 8)
+
+
+
+"""
+k = 3:
+
+Evaluating valid set
+ *** Extracted vs Gold ***
+OrderedDict([('Correct  #', 53962),
+            ('true_positive  #', 19737),
+            ('total_pred  #', 53962),
+            ('total_gold  #', 32320),
+            ('Relation Generation (RG) #', 47.881100266193435),
+            ('Relation Generation (RG) %Precision', 100.0),
+            ('Content Selection (CS) %Precision', 36.57573848263593),
+            ('Content Selection (CS) %Recall', 61.0674504950495),
+            ('Content Selection (CS) %F1', 45.74998261514568),
+            ('Content Ordering (CO)', 13.152394949490768)])
+ ****** BLEU ******
+BLEU = 15.21, 49.3/21.4/10.6/6.4 (BP=0.931, ratio=0.933, hyp_len=237234, ref_len=254238)
+
+Evaluating test set
+ *** Extracted vs Gold ***
+OrderedDict([('Correct  #', 53777),
+            ('true_positive  #', 19666),
+            ('total_pred  #', 53777),
+            ('total_gold  #', 32298),
+            ('Relation Generation (RG) #', 47.88691006233304),
+            ('Relation Generation (RG) %Precision', 100.0),
+            ('Content Selection (CS) %Precision', 36.56953716272756),
+            ('Content Selection (CS) %Recall', 60.88921914669639),
+            ('Content Selection (CS) %F1', 45.695033401103686),
+            ('Content Ordering (CO)', 13.376977615131402)])
+ ****** BLEU ******
+BLEU = 15.10, 49.4/21.3/10.6/6.4 (BP=0.924, ratio=0.927, hyp_len=236406, ref_len=255155)
+
+k = 4:
+Evaluating valid set
+
+ *** Extracted vs Gold ***
+OrderedDict([('Correct  #', 69740),
+            ('true_positive  #', 20916),
+            ('total_pred  #', 69740),
+            ('total_gold  #', 32320),
+            ('Relation Generation (RG) #', 61.881100266193435),
+            ('Relation Generation (RG) %Precision', 100.0),
+            ('Content Selection (CS) %Precision', 29.99139661600229),
+            ('Content Selection (CS) %Recall', 64.71534653465346),
+            ('Content Selection (CS) %F1', 40.98765432098765),
+            ('Content Ordering (CO)', 12.131642501969834)])
+ ****** BLEU ******
+BLEU = 13.64, 41.9/17.8/8.8/5.3 (BP=1.000, ratio=1.172, hyp_len=298092, ref_len=254238)
+
+Evaluating test set
+
+ *** Extracted vs Gold ***
+OrderedDict([('Correct  #', 69499),
+            ('true_positive  #', 20982),
+            ('total_pred  #', 69499),
+            ('total_gold  #', 32298),
+            ('Relation Generation (RG) #', 61.88691006233304),
+            ('Relation Generation (RG) %Precision', 100.0),
+            ('Content Selection (CS) %Precision', 30.19036245125829),
+            ('Content Selection (CS) %Recall', 64.96377484673974),
+            ('Content Selection (CS) %F1', 41.22321875890252),
+            ('Content Ordering (CO)', 12.448336445425412)])
+ ****** BLEU ******
+BLEU = 13.68, 42.1/17.9/8.8/5.3 (BP=1.000, ratio=1.164, hyp_len=297048, ref_len=255155)
+
+
+k = 5:
+
+Evaluating valid set
+
+ *** Extracted vs Gold ***
+OrderedDict([('Correct  #', 85518),
+            ('true_positive  #', 21547),
+            ('total_pred  #', 85518),
+            ('total_gold  #', 32320),
+            ('Relation Generation (RG) #', 75.88110026619343),
+            ('Relation Generation (RG) %Precision', 100.0),
+            ('Content Selection (CS) %Precision', 25.19586519797002),
+            ('Content Selection (CS) %Recall', 66.66769801980197),
+            ('Content Selection (CS) %F1', 36.57054600383577),
+            ('Content Ordering (CO)', 11.318449680003425)])
+ ****** BLEU ******
+BLEU = 11.62, 35.9/15.2/7.5/4.5 (BP=1.000, ratio=1.412, hyp_len=358950, ref_len=254238)
+
+Evaluating test set
+ *** Extracted vs Gold ***
+OrderedDict([('Correct  #', 85221),
+            ('true_positive  #', 21532),
+            ('total_pred  #', 85221),
+            ('total_gold  #', 32298),
+            ('Relation Generation (RG) #', 75.88691006233303),
+            ('Relation Generation (RG) %Precision', 100.0),
+            ('Content Selection (CS) %Precision', 25.266072916299976),
+            ('Content Selection (CS) %Recall', 66.66666666666666),
+            ('Content Selection (CS) %F1', 36.64428730673338),
+            ('Content Ordering (CO)', 11.512959672209416)])
+ ****** BLEU ******
+BLEU = 11.66, 36.1/15.2/7.5/4.5 (BP=1.000, ratio=1.402, hyp_len=357690, ref_len=255155)
+"""
